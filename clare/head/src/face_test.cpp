@@ -4,12 +4,12 @@
 
 Face face = Face(0, 1, 2, 3);
 
-void setup() {
+void face_setup() {
   Serial.begin(9600);
   face.reset();
 }
 
-void loop() {
+void face_loop() {
   while (true) {
     face.happy();
     delaySeconds(2);
