@@ -52,44 +52,12 @@ void setup() {
 
 // Simple manual differential steering where channel 1 controls the left
 // track and channel 3 controls the right track
-void dual_joystick(const int ch1, const int ch2, int &vL, int &vR){
+void dual_joystick(const int chL, const int chR, int &vL, int &vR){
 	// Map to a symmetric pwm range centered over 0
-	vL = map(ch1, rc_minpwm, rc_maxpwm, -motor_maxpwm, motor_maxpwm);
-	vR = map(ch2, rc_minpwm, rc_maxpwm, -motor_maxpwm, motor_maxpwm);
+	vL = map(chL, rc_minpwm, rc_maxpwm, -motor_maxpwm, motor_maxpwm);
+	vR = map(chR, rc_minpwm, rc_maxpwm, -motor_maxpwm, motor_maxpwm);
 
-	Log.notice("Mapped RC intput to %d -> %d, %d -> %d\n", ch1, vL, ch2, vR);
-
-	const int deadband = motor_deadband;
-
-	if((-deadband <= vL) && (vL <= deadband)){
-		vL = 0;
-	}else if(vL < -deadband) {
-		vL = abs(vL);
-		if(directionL == fwd){
-			set_motor(left, reverse);
-			directionL = reverse;
-		}
-	} else {
-		if(directionL == reverse){
-			set_motor(left, fwd);
-			directionL = fwd;
-		}
-	}
-
-	if((-deadband <= vR) && (vR <= deadband)){
-		vR = 0;
-	}else if(vR < -deadband) {
-		vR = abs(vR);
-		if(directionR == fwd){
-			set_motor(right, reverse);
-			directionR = reverse;
-		}
-	} else {
-		if(directionR == reverse){
-			set_motor(right, fwd);
-			directionR = fwd;
-		}
-	}
+	Log.verbose("Mapped RC intput to %d -> %d, %d -> %d\n", chL, vL, chR, vR);
 }
 
 void single_joystick(const int chx, const int chy, int &vL, int &vR){
@@ -139,6 +107,7 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 	}
 
 	// So this is x_c and y_c
+	// Note the triangles J_xOJ_y and c_xOc_y are similar
 	const double joy_x_scaled = joy_x * s;
 	const double joy_y_scaled = joy_y * s;
 
@@ -150,10 +119,27 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 	
 	Log.verbose("chx=%d, chy=%d, joy_x=%D, joy_y=%D, r=%D, theta=%D, joy_x_scaled=%D, joy_y_scaled=%D, rawL=%D, rawR=%D\n", chx, chy, joy_x, joy_y, r, theta, joy_x_scaled, joy_y_scaled, rawL, rawR);
 	
-	// Convert to PMN range
+	// Convert to PMN range with negative equalling backwards
 	vL = (int) (rawL * 255.0);
 	vR = (int) (rawR * 255.0);
+}
 
+void rc_mode(){
+  // look for a good SBUS packet from the receiver
+  if(x8r.read(&rc_input[0], &rc_failSafe, &rc_lostFrame)){
+	// Read the values for each channel
+	const int ch1 = rc_input[0];
+	const int ch2 = rc_input[1];
+	const int ch3 = rc_input[2];
+	const int ch4 = rc_input[3];
+	//Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
+
+	int vL = -999;
+	int vR = -999;
+	//dual_joystick(ch1, ch3, vL, vR);
+	single_joystick(ch4, ch1, vL, vR);
+	
+	// Handle deadband and reversing
 	const int deadband = motor_deadband;
 
 	if((-deadband <= vL) && (vL <= deadband)){
@@ -185,24 +171,10 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 			directionR = fwd;
 		}
 	}
-}
-
-void rc_mode(){
-  // look for a good SBUS packet from the receiver
-  if(x8r.read(&rc_input[0], &rc_failSafe, &rc_lostFrame)){
-	// Read the values for each channel
-	const int ch1 = rc_input[0];
-	const int ch2 = rc_input[1];
-	const int ch3 = rc_input[2];
-	const int ch4 = rc_input[3];
-	//Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
-
-	int vL = -999;
-	int vR = -999;
-	//dual_joystick(ch1, ch3, vL, vR);
-	single_joystick(ch4, ch1, vL, vR);
 	
-	Log.notice("Motor speeds calculated as %d, %d\n", vL, vR);
+	Log.verbose("Motor speeds calculated as %d, %d\n", vL, vR);
+
+	// Command the motors
 	set_speed(vL, vR);
 
   } else {
