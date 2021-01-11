@@ -50,8 +50,9 @@ void setup() {
 	Log.notice("Setup done\n");
 }
 
-// Simple manual differential steering where channel 1 controls the left
-// track and channel 3 controls the right track
+// Simple manual differential steering where two channels control
+// the two tracks separately
+// returns a +/- pwm value
 void dual_joystick(const int chL, const int chR, int &vL, int &vR){
 	// Map to a symmetric pwm range centered over 0
 	vL = map(chL, rc_minpwm, rc_maxpwm, -motor_maxpwm, motor_maxpwm);
@@ -60,6 +61,8 @@ void dual_joystick(const int chL, const int chR, int &vL, int &vR){
 	Log.verbose("Mapped RC intput to %d -> %d, %d -> %d\n", chL, vL, chR, vR);
 }
 
+// Differential steering with one joystick
+// returns a +/- pwm value
 void single_joystick(const int chx, const int chy, int &vL, int &vR){
 	// Map raw channel input to -1, 1
 	const double joy_x = mapf(chx, rc_minpwm, rc_maxpwm, -1.0, 1.0);
