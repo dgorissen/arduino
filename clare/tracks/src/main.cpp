@@ -125,63 +125,36 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 	// with point J. Denote the length of OJ as b. Let C = (x_c, y_c) be the point where the OJ intersects our circle with radius
 	// r. OC thus has length r. if J is on the X-axis or Y-axis then b == r. For all other locations of J outside
 	// of the cirlc we have to scale J to lie on the circle.
-	// 
-	// //------ way 1
-	// // O-J-J_x is a right angle triangle with theta in O
-	// // Find the ratio between the hypotenuse (OJ) and the adjacent side (OJ_X or OJ_Y)
-	// double ratio = -1;
-	// if (abs(joy_x) > abs(joy_y)) {
-	// 	// if you take the top right quadrant, this means that theta is less than 45 degrees
-	// 	// so then the adjacent side is on X
-    // 	ratio = abs(r / joy_x);
-	// } else {
-	// 	// if you take the top right quadrant, this means that theta is more than 45 degrees
-	// 	// so then the adjacent side is on Y
-	// 	ratio = abs(r / joy_y);
-	// }
 
-	// // For example. With the stick at just under 45 degrees, max to the right,
-	// // r will be just under sqrt(2) and joy_x will be 1
-	// // So then ratio will be just under sqrt(2) = ~1.4
+	// Not 100% sure about the calculation below but it kinda makes sense and seems to work on the robot
 
-	// // Now calculate the actual (scaled) speed factor
-	// // So in the example, speed = sqrt(2) / ~sqrt(2) = >1
-	// const double fac = r/ratio;
-	// // const double turn_damping = 1;
-	// // const double rawL = fac * (sin(theta) + cos(theta) / turn_damping);
-	// // const double rawR = fac * (sin(theta) - cos(theta) / turn_damping);
-
-	// // Calculate the final motor speeds, adding both contributions
-	// const double x_comp = fac * cos(theta);
-	// const double y_comp = fac * sin(theta);
-
-	// const double rawL = y_comp + x_comp;
-	// const double rawR = y_comp - x_comp;
-
-	// Log.notice("chx=%d, chy=%d, joy_x=%D, joy_y=%D, r=%D, theta=%D, ratio=%D, fac=%D, y_comp=%D, x_comp=%D, rawL=%D, rawR=%D\n", chx, chy, joy_x, joy_y, r, theta, ratio, fac, y_comp, x_comp, rawL, rawR);
-	
-	//------ way 2
+	// Figure out by how much we should scale OJ
 	double s = -1;
 	if(r > r_max){
+		//OJ is outside the circle, scale
 		s = (r_max / r);
 	} else {
+		//OJ is inside the circle, no scale
 		s = 1;
 	}
+
+	// So this is x_c and y_c
 	const double joy_x_scaled = joy_x * s;
 	const double joy_y_scaled = joy_y * s;
 
 	// Turn into wheel velocities
 	// Ensure between [-1,1], adding scaled components together can still exceed 1
-	// TODO: not 100% happy I understand why this is needed
+	// TODO: not 100% happy I understand why clipping is still needed
 	const double rawL = clip(joy_y_scaled + joy_x_scaled, -1, 1);
 	const double rawR = clip(joy_y_scaled - joy_x_scaled, -1, 1);
 	
-	Log.notice("chx=%d, chy=%d, joy_x=%D, joy_y=%D, r=%D, theta=%D, joy_x_scaled=%D, joy_y_scaled=%D, rawL=%D, rawR=%D\n", chx, chy, joy_x, joy_y, r, theta, joy_x_scaled, joy_y_scaled, rawL, rawR);
+	Log.verbose("chx=%d, chy=%d, joy_x=%D, joy_y=%D, r=%D, theta=%D, joy_x_scaled=%D, joy_y_scaled=%D, rawL=%D, rawR=%D\n", chx, chy, joy_x, joy_y, r, theta, joy_x_scaled, joy_y_scaled, rawL, rawR);
 	
+	// Convert to PMN range
 	vL = (int) (rawL * 255.0);
 	vR = (int) (rawR * 255.0);
 
-	const int deadband = 30;
+	const int deadband = motor_deadband;
 
 	if((-deadband <= vL) && (vL <= deadband)){
 		vL = 0;
