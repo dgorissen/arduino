@@ -117,11 +117,21 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 	// Turn into wheel velocities
 	// Ensure between [-1,1], adding scaled components together can still exceed 1
 	// TODO: not 100% happy I understand why clipping is still needed
-	const double rawL = clip(joy_y_scaled + joy_x_scaled, -1, 1);
-	const double rawR = clip(joy_y_scaled - joy_x_scaled, -1, 1);
+	double rawL = clip(joy_y_scaled + joy_x_scaled, -1, 1);
+	double rawR = clip(joy_y_scaled - joy_x_scaled, -1, 1);	
 	
+	// Handle backwards turning more intuitively
+	// As is, pulling the stick to bottom right has the right
+	// track turning backwards, leading to a reverse left turn
+	// Swap track command around.
+	if(rawL < 0 && rawR < 0){
+		double tmp = rawL;
+		rawL = rawR;
+		rawR = tmp;
+	}
+
 	Log.verbose("chx=%d, chy=%d, joy_x=%D, joy_y=%D, r=%D, theta=%D, joy_x_scaled=%D, joy_y_scaled=%D, rawL=%D, rawR=%D\n", chx, chy, joy_x, joy_y, r, theta, joy_x_scaled, joy_y_scaled, rawL, rawR);
-	
+
 	// Convert to PMN range with negative equalling backwards
 	vL = (int) (rawL * 255.0);
 	vR = (int) (rawR * 255.0);
@@ -144,7 +154,7 @@ void rc_mode(){
 	
 	// Handle deadband and reversing
 	const int deadband = motor_deadband;
-
+	
 	if((-deadband <= vL) && (vL <= deadband)){
 		vL = 0;
 	}else if(vL < -deadband) {
