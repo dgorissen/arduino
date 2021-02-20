@@ -1,6 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
  
+const double EPS = 0.001;
+ 
 // Motor A connections
 const int motor_enA = 12;
 const int motor_in1 = 11;

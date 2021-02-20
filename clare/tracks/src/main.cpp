@@ -106,7 +106,7 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 		s = (r_max / r);
 	} else {
 		//OJ is inside the circle, no scale
-		s = 1;
+		s = 1.0;
 	}
 
 	// So this is x_c and y_c
@@ -117,14 +117,15 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 	// Turn into wheel velocities
 	// Ensure between [-1,1], adding scaled components together can still exceed 1
 	// TODO: not 100% happy I understand why clipping is still needed
-	double rawL = clip(joy_y_scaled + joy_x_scaled, -1, 1);
-	double rawR = clip(joy_y_scaled - joy_x_scaled, -1, 1);	
+	double rawL = clip(joy_y_scaled + joy_x_scaled, -1.0, 1.0);
+	double rawR = clip(joy_y_scaled - joy_x_scaled, -1.0, 1.0);	
 	
 	// Handle backwards turning more intuitively
 	// As is, pulling the stick to bottom right has the right
 	// track turning backwards, leading to a reverse left turn
+
 	// Swap track command around.
-	if(rawL < 0 && rawR < 0){
+	if(rawL < EPS && rawR < EPS){
 		double tmp = rawL;
 		rawL = rawR;
 		rawR = tmp;
