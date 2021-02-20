@@ -2,20 +2,20 @@
 #define CONFIG_H
  
 // Motor A connections
-const int motor_enA = 7;
-const int motor_in1 = 8;
-const int motor_in2 = 9;
+const int motor_enA = 12;
+const int motor_in1 = 11;
+const int motor_in2 = 10;
 
 // Motor B connections
-const int motor_enB = 12;
-const int motor_in3 = 10;
-const int motor_in4 = 11;
+const int motor_enB = 7;
+const int motor_in3 = 9;
+const int motor_in4 = 8;
 
 // Encoder pins
-const int motor_encA1 = 2;
-const int motor_encA2 = 3;
-const int motor_encB1 = 4;
-const int motor_encB2 = 5;
+const int motor_encA1 = 3;
+const int motor_encA2 = 4;
+const int motor_encB1 = 5;
+const int motor_encB2 = 6;
 
 //Speed control
 const int motor_maxpwm = 255;

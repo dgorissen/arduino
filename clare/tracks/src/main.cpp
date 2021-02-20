@@ -14,7 +14,7 @@ MotorDir directionL;
 MotorDir directionR;
 
 // Sbus object on hardware serial port
-SBUS x8r(Serial5);
+SBUS x8r(Serial1);
 
 // channel, fail safe, and lost frames data
 uint16_t rc_input[16];
