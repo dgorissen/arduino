@@ -10,6 +10,8 @@
 // Motor variables
 Encoder encA(motor_encA1, motor_encA2);
 Encoder encB(motor_encB1, motor_encB2);
+long encA_pos = -999;
+long encB_pos = -999;
 MotorDir directionL;
 MotorDir directionR;
 
@@ -43,10 +45,35 @@ void setup_logging(){
     //Log.begin(LOG_LEVEL_NOTICE, &Serial);
 }
 
+// Publish a message to the outside world
+void publish(const String s){
+	Serial5.println(s);
+}
+
+void setup_publish(){
+	Serial5.begin(115200);
+}
+
+void set_headlights(bool b){
+	if(b){
+		digitalWrite(headlights, HIGH);
+	}else{
+		digitalWrite(headlights, LOW);
+	}
+}
+
+void setup_headlights() {
+	pinMode(headlights, OUTPUT);
+	set_headlights(false);
+}
+
 void setup() {
 	setup_logging();
+	setup_publish();
 	setup_motors();
 	setup_rc();
+	setup_headlights();
+	publish("Setup done");
 	Log.notice("Setup done\n");
 }
 
@@ -188,14 +215,23 @@ void rc_mode(){
 	
 	Log.verbose("Motor speeds calculated as %d, %d\n", vL, vR);
 
+	// Set the headlights appropriately
+	if(directionR == fwd || directionL == fwd) {
+		set_headlights(true);
+	} else{
+		set_headlights(false);
+	}
+
 	// Command the motors
 	set_speed(vL, vR);
+	publish("L=" + String(vL) + ",R=" + String(vR));
 
   } else {
 	  if(rc_failSafe){
 			Log.warning("FAILSAFE TRIGGERED\n");
 			// Stop motors
 			set_speed(0, 0);
+			publish("L=0,R=0");
 	  } else if (rc_lostFrame){
 		  	Log.warning("FRAME LOST\n");
 	  }else{
@@ -205,6 +241,23 @@ void rc_mode(){
   }
 }
 
+void read_encoders() {
+  const long newA = encA.read();
+  const long newB = encB.read();
+
+  if(newA != encA_pos){
+	  encA_pos = newA;
+  }
+
+  if(newB != encB_pos){
+	  encB_pos = newB;
+  }
+
+  publish("EL=" + String(encA_pos) + ",ER=" + String(encB_pos));
+  Log.verbose("Encoders set to %d, %d\n", encA_pos, encB_pos);
+}
+
 void loop() {
+	read_encoders();
 	rc_mode();
 }
