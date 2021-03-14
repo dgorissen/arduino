@@ -1,11 +1,11 @@
 build:
-	docker build -t clare-brain .
+	docker build -t dgorissen/clare .
 
 run:
-	docker run --name cbrain clare-brain
+	docker run --name cbrain dgorissen/clare
 
 runshell:
-	docker run --name cbrain -it clare-brain
+	docker run --name cbrain -it dgorissen/clare
 
 create-buildx:
 	docker buildx create --name clare-builder
@@ -13,4 +13,7 @@ create-buildx:
 
 buildx:
 	docker buildx use clare-builder
-	docker buildx build -t clare-brain --platform linux/arm64 --load .
+	docker buildx build -t dgorissen/clare --platform linux/arm64 --push .
+
+push:
+	docker push dgorissen/clare
