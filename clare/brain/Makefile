@@ -1,11 +1,13 @@
+rootdir=/Users/dirk.gorissen/code/arduino/clare/brain
+
 build:
 	docker build -t dgorissen/clare .
 
 run:
-	docker run --name cbrain dgorissen/clare
+	docker run -v ${rootdir}:/home/dgorissen/cbrain --name cbrain dgorissen/clare
 
 runshell:
-	docker run --name cbrain -it dgorissen/clare
+	docker run -v ${rootdir}:/home/dgorissen/cbrain --name cbrain -it dgorissen/clare
 
 create-buildx:
 	docker buildx create --name clare-builder
