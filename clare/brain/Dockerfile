@@ -39,7 +39,15 @@ RUN useradd -ms /bin/bash dgorissen && \
 RUN echo 'dgorissen:test' | chpasswd
 
 # Install some utils
-RUN apt-get install -y wget vim python3.8 git
+RUN apt-get update && apt-get install -y wget vim python3.8 git software-properties-common
+
+# Setup x2go
+RUN add-apt-repository ppa:x2go/stable && \
+  apt-get update && apt-get install -y openssh-server x2goserver x2goserver-xsession
+  
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4
+
+RUN service ssh start
 
 USER dgorissen
 WORKDIR /home/dgorissen
@@ -63,6 +71,12 @@ source ~/openvino/bin/setupvars.sh \n\
 ' >> ~/.bashrc
 
 RUN ~/.pyenv/bin/pyenv global 3.7.10
-RUN READTHEDOCS=True /home/dgorissen/.pyenv/shims/pip install picamera imutils numpy
+RUN READTHEDOCS=True /home/dgorissen/.pyenv/shims/pip install picamera imutils numpy flask
 
 RUN mkdir ~/cbrain
+
+EXPOSE 22
+EXPOSE 5000
+
+WORKDIR /home/dgorissen/cbrain
+CMD /home/dgorissen/.pyenv/shims/python3 app.py
