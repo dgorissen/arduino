@@ -46,8 +46,11 @@ RUN add-apt-repository ppa:x2go/stable && \
   apt-get update && apt-get install -y openssh-server x2goserver x2goserver-xsession
   
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4
-
 RUN service ssh start
+
+# install nodejs
+RUN curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash - && \
+  apt-get install -y nodejs
 
 USER dgorissen
 WORKDIR /home/dgorissen
