@@ -3,7 +3,7 @@
 
 CLARE=/home/dgorissen/clare/brain
 LOGS=$CLARE/logs
-TRACKSUSB=/dev/ttyUSB0
+track_serial_usb=/dev/ttyUSB0
 
 mkdir -p $LOGS
 rm $LOGS/*
@@ -12,8 +12,11 @@ rm $LOGS/*
 roscore -v --master-logger-level=info 2>&1 | tee $LOGS/roscore.txt &
 echo $! > $LOGS/roscore.pid
 
+echo "Givng roscore some time to start"
+sleep 5
+
 # Connect to tracks
-rosrun rosserial_python serial_node.py _baud:=115200 _port:="${TRACKSUSB}"  2>&1 | tee $LOGS/tracks.txt &
+rosrun rosserial_python serial_node.py _baud:=115200 _port:="${track_serial_usb}"  2>&1 | tee $LOGS/tracks.txt &
 echo $! > $LOGS/tracks.pid
 
 # Start web frontend
@@ -21,11 +24,9 @@ npm run serve --prefix $CLARE/client > $LOGS/frontend.txt 2>&1 &
 echo $! > $LOGS/frontend.pid
 
 # Start web backend
-# /home/dgorissen/.pyenv/shims/python3 $CLARE/server/app.py > $LOGS/backend.txt 2>&1 
 /home/dgorissen/.pyenv/shims/python3 $CLARE/server/app.py 2>&1 | tee $LOGS/backend.txt
 echo $! > $LOGS/backend.pid
 
 # Keep container running
 # tail -f /dev/null
-
 # exec "$@"
