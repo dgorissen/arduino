@@ -68,3 +68,6 @@ execshell:
 
 push:
 	docker push dgorissen/clare
+
+clean:
+	docker builder prune -a -f
