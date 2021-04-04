@@ -1,8 +1,9 @@
 rootdir=/Users/dirk.gorissen/code/arduino/clare/
-trackusb=/dev/ttype%
-arch ?= "arm64"
+track_teensy_usb=/dev/ttyACM0
+track_serial_usb=/dev/ttyUSB0
+arch ?= $(arch)
 
-ifeq ($(arch), "arm64")
+ifeq ($(arch), "armv7l")
 	vinodist=raspbian
 else
 	vinodist=ubuntu20
@@ -30,11 +31,27 @@ builder:
 	docker buildx inspect --bootstrap
 
 run:
-	docker run -v ${rootdir}:/home/dgorissen/clare -h cbrain \
+	docker run \
 	--rm \
+	-v ${rootdir}:/home/dgorissen/clare \
+	-h cbrain \
 	-p5000:5000 -p2222:22 -p11311:11311 -p8080:8080 \
 	--name cbrain \
 	dgorissen/clare
+
+runpi:
+	docker run \
+	--rm \
+	-v ${rootdir}:/home/dgorissen/clare \
+	-h cbrain \
+	-p5000:5000 -p2222:22 -p11311:11311 -p8080:8080 \
+	--device=${track_teensy_usb} \
+	--device=${track_serial_usb} \
+	--name cbrain \
+	dgorissen/clare
+	# --privileged \
+	# --network=host \
+	# -v /dev:/dev \
 
 runshell:
 	docker run -v ${rootdir}:/home/dgorissen/clare -h cbrain \
@@ -43,7 +60,6 @@ runshell:
 	--name cbrain \
 	-it \
 	dgorissen/clare
-	# --device=${trackusb} \
 
 execshell:
 	docker exec -it cbrain bash

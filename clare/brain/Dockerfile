@@ -37,11 +37,12 @@ RUN apt-get update && apt-get install -y build-essential cmake \
 
 RUN useradd -ms /bin/bash dgorissen && \
   usermod -a -G users dgorissen && \
+  usermod -a -G dialout dgorissen && \
   usermod -a -G sudo dgorissen
 RUN echo 'dgorissen:test' | chpasswd
 
 # Install some utils
-RUN apt-get update && apt-get install -y wget vim keychain tree python3.8 git software-properties-common
+RUN apt-get update && apt-get install -y wget vim keychain tree screen python3.8 git software-properties-common
 
 # Setup x2go
 RUN add-apt-repository ppa:x2go/stable && \
