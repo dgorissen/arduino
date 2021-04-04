@@ -12,9 +12,12 @@ git config --global user.email "dgorissen@gmail.com"
 git config --global user.name "Dirk Gorissen"
 
 # get std packages
-sudo apt install -y vim
+sudo apt install -y vim keychain imagemagick feh
 
 # install docker
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 sudo usermod -aG docker dgorissen
+
+# add this to bashrc
+eval $(keychain --noask --eval id_rsa)

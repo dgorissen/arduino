@@ -2,7 +2,7 @@ FROM ros:noetic
 
 # install ros package
 RUN apt-get update && apt-get install -y \
-      ros-${ROS_DISTRO}-desktop-full \
+      ros-${ROS_DISTRO}-desktop \
       python3-rosdep \
       python3-rosinstall \
       python3-rosinstall-generator \
@@ -41,7 +41,7 @@ RUN useradd -ms /bin/bash dgorissen && \
 RUN echo 'dgorissen:test' | chpasswd
 
 # Install some utils
-RUN apt-get update && apt-get install -y wget vim python3.8 git software-properties-common
+RUN apt-get update && apt-get install -y wget vim keychain tree python3.8 git software-properties-common
 
 # Setup x2go
 RUN add-apt-repository ppa:x2go/stable && \
@@ -63,14 +63,7 @@ WORKDIR /home/dgorissen
 # Update rosdep
 RUN rosdep update
 
-ENV vinodist=l_openvino_toolkit_runtime_ubuntu20_p_2021.2.185
-# ENV vinodist=l_openvino_toolkit_runtime_raspbian_p_2021.2.185
-
-RUN wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.2/${vinodist}.tgz && \
-# RUN wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.2/${vinodist}.tgz && \
-  tar -xf ${vinodist}.tgz && \
-  mv ${vinodist} openvino 
-
+# Install python / pyenv
 RUN curl https://pyenv.run | bash 
 RUN ~/.pyenv/bin/pyenv install 3.7.10 
 
@@ -78,20 +71,37 @@ RUN echo '\n### \n\
 export PATH="/home/dgorissen/.pyenv/bin:$PATH" \n\
 eval "$(pyenv init -)" \n\
 eval "$(pyenv virtualenv-init -)" \n\
-source ~/openvino/bin/setupvars.sh \n\
 ' >> ~/.bashrc
 
 RUN ~/.pyenv/bin/pyenv global 3.7.10
 RUN READTHEDOCS=True /home/dgorissen/.pyenv/shims/pip install \
   picamera imutils numpy flask flask_cors pyyaml rospkg pyserial platformio
 
+# Install openvino
+
+ARG vinodist=ubuntu20
+# ARG vinodist=raspbian
+ARG vinofile=l_openvino_toolkit_runtime_${vinodist}_p_2021.3.394
+
+RUN wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.3/${vinofile}.tgz && \
+  tar -xf ${vinofile}.tgz && \
+  mv ${vinofile} openvino 
+
+RUN echo '\n### \n\
+source ~/openvino/bin/setupvars.sh \n\
+' >> ~/.bashrc
+
+# Install model zoo downloader
+RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
+  cd open_model_zoo/tools/downloader && \
+  /home/dgorissen/.pyenv/shims/pip install -r requirements.in
+
 RUN mkdir ~/clare
+WORKDIR /home/dgorissen/clare
 
 EXPOSE 22
 EXPOSE 5000
 EXPOSE 8080
-
-WORKDIR /home/dgorissen/clare
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
 
