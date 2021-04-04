@@ -24,3 +24,6 @@ sudo usermod -a -G dialout dgorissen
 
 # add this to bashrc
 eval $(keychain --noask --eval id_rsa)
+
+# if docker img does not build on the pi because of key problems with apt, see
+# https://askubuntu.com/questions/1263284/apt-update-throws-signature-error-in-ubuntu-20-04-container-on-arm

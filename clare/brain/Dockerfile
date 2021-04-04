@@ -42,7 +42,7 @@ RUN useradd -ms /bin/bash dgorissen && \
 RUN echo 'dgorissen:test' | chpasswd
 
 # Install some utils
-RUN apt-get update && apt-get install -y wget vim keychain tree screen python3.8 git software-properties-common
+RUN apt-get update && apt-get install -y wget vim keychain tree screen git software-properties-common
 
 # Setup x2go
 RUN add-apt-repository ppa:x2go/stable && \
@@ -64,9 +64,17 @@ WORKDIR /home/dgorissen
 # Update rosdep
 RUN rosdep update
 
+# RUN which python3 && python3 --version && flabla
+
 # Install python / pyenv
-RUN curl https://pyenv.run | bash 
-RUN ~/.pyenv/bin/pyenv install 3.7.10 
+RUN curl https://pyenv.run | bash && \
+  ~/.pyenv/bin/pyenv install -v 3.7.10 
+
+# RUN add-apt-repository ppa:deadsnakes/ppa && \
+#   apt-get update && \
+#   apt-get install python3.7
+
+# RUN which python3 && python3 --version && flabla
 
 RUN echo '\n### \n\
 export PATH="/home/dgorissen/.pyenv/bin:$PATH" \n\
