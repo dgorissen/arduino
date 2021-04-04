@@ -1,16 +1,12 @@
 rootdir=/Users/dirk.gorissen/code/arduino/clare/
 track_teensy_usb=/dev/ttyACM0
 track_serial_usb=/dev/ttyUSB0
-arch ?= $(arch)
-
-ifeq ($(arch), "armv7l")
-	vinodist=raspbian
-else
-	vinodist=ubuntu20
-endif
+build_arch ?= $(shell arch)
 
 build:
-ifeq ($(arch), "arm64")
+	echo "Build arch is: ${build_arch}"
+ifeq ($(build_arch), armv7l)
+	vinodist=raspbian
 	echo "=== Building for ARM"
 	sleep 2
 	docker buildx use clare-builder
@@ -19,6 +15,7 @@ ifeq ($(arch), "arm64")
 	--platform linux/arm/v7 \
 	--push .
 else
+	vinodist=ubuntu20
 	echo "=== Building for UBUNTU"
 	sleep 2
 	docker build -t dgorissen/clare \
