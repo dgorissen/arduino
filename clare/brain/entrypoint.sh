@@ -13,7 +13,7 @@ roscore -v --master-logger-level=info 2>&1 | tee $LOGS/roscore.txt &
 echo $! > $LOGS/roscore.pid
 
 # Connect to tracks
-rosrun rosserial_python serial_node.py -baud 115200 -port $TRACKSUSB  2>&1 | tee $LOGS/tracks.txt &
+rosrun rosserial_python serial_node.py _baud:=115200 _port:="${TRACKSUSB}"  2>&1 | tee $LOGS/tracks.txt &
 echo $! > $LOGS/tracks.pid
 
 # Start web frontend
