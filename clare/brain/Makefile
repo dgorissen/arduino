@@ -1,4 +1,8 @@
-rootdir=~/code/arduino/clare/
+# Get clare directory
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+mkfile_dir := $(dir $(mkfile_path))
+rootdir := $(shell dirname $(mkfile_dir))
+
 track_teensy_usb=/dev/ttyACM0
 track_serial_usb=/dev/ttyUSB0
 build_arch ?= $(shell arch)
