@@ -21,7 +21,7 @@ class Tracks:
         self._pub = None
         self._connected = False
 
-    def set_headlights(state):
+    def set_headlights(self, state):
         if state:
             msg = "Lon"
         else:
@@ -30,7 +30,7 @@ class Tracks:
         rospy.loginfo(msg)
         self._pub.publish(msg)
 
-    def status_callback(data):
+    def status_callback(self, data):
         rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
 
     def is_connected(self):
