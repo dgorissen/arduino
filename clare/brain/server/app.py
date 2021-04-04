@@ -3,42 +3,26 @@ from random import randint
 import json
 import time
 from flask_cors import CORS
+from clare.tracks import Tracks
 
 # configuration
 DEBUG = True
+# TODO global vars
+TRACKS = None
 
-# instantiate the app
+# instantiate the app and enable CORS
 app = Flask(__name__)
 app.config.from_object(__name__)
-
-# enable CORS
 CORS(app, resources={r'/*': {'origins': '*'}})
 
-# TODO global flag
-CONNECTED=False
-
 def connected():
-    return CONNECTED
+    return TRACKS and TRACKS.is_connected()
 
-def event_stream():
-    data_dic = {}
-    while True:
-
-        time.sleep(0.005)
-        # Simulate random CAN msg
-        id, dlc = randint(100, 120), randint(1, 8)
-        bytes = " ".join([str(randint(20, 80)) for _ in range(dlc)])
-
-        event = "update"
-        msg = {"id": id, "dlc": dlc, "bytes": bytes}
-
-        if not data_dic.get(id):
-            event = "new_id"
-
-        data_dic[id] = msg
-        data = json.dumps(msg) if event == "update" else json.dumps(data_dic)
-        yield f"event:{event}\ndata:{data}\n\n"
-
+def connect_to_tracks():
+    global TRACKS
+    if not connected():
+        TRACKS = Tracks()
+        TRACKS.connect(disable_signals=True)
 
 @app.route("/")
 def index():
@@ -49,17 +33,19 @@ def index():
 
 @app.route("/connect")
 def connect():
-    # TODO setup serial connections
-    global CONNECTED
-    CONNECTED = True
-    return ('', 204)
+    connect_to_tracks()
+    return ('',200)
 
-@app.route("/disconnect")
-def disconnect():
-    # TODO tear down serial connections
-    global CONNECTED
-    CONNECTED = False
-    return ('', 204)
+@app.route("/headlights/<status>")
+def headlights(status):
+    if status == "on":
+        TRACKS.set_headlights(True)
+    elif statis == "off"
+        TRACKS.set_headlights(False)
+    else:
+        return "Invalid headlight status", 500
+
+    return f'Headlights set to {status}', 200
 
 @app.route("/stream")
 def stream():
@@ -67,4 +53,5 @@ def stream():
 
 
 if __name__ == "__main__":
-    app.run()
+    # Important not threaded given our global state
+    app.run(host='0.0.0.0', threaded=False)

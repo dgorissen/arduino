@@ -1,13 +1,22 @@
-rootdir=/Users/dirk.gorissen/code/arduino/clare/brain
+rootdir=/Users/dirk.gorissen/code/arduino/clare/
+trackusb=/dev/ttype%
 
 build:
 	docker build -t dgorissen/clare .
 
 run:
-	docker run -v ${rootdir}:/home/dgorissen/cbrain -h cbrain -p5000:5000 -p2222:22 --name cbrain dgorissen/clare
+	docker run -v ${rootdir}:/home/dgorissen/clare -h cbrain \
+	-p5000:5000 -p2222:22 -p11311:11311 -p8080:8080 \
+	--name cbrain \
+	dgorissen/clare
 
 runshell:
-	docker run -v ${rootdir}:/home/dgorissen/cbrain -h cbrain -p5000:5000 -p2222:22 --name cbrain -it dgorissen/clare
+	docker run -v ${rootdir}:/home/dgorissen/clare -h cbrain \
+	-p5000:5000 -p2222:22 -p11311:11311 -p8080:8080 \
+	--name cbrain \
+	-it \
+	dgorissen/clare
+	# --device=${trackusb} \
 
 execshell:
 	docker exec -it cbrain bash

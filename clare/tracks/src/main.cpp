@@ -6,6 +6,25 @@
 #include "motor_utils.h"
 #include "utils.h"
 #include <math.h>
+// So we can use a different serial port
+// needs to happen before ros.h include
+#define USE_TEENSY_HW_SERIAL
+#include <ros.h>
+#include <std_msgs/String.h>
+#include <std_msgs/Empty.h>
+
+// ROS variables
+// Wrapper class so we can use a custom serial port
+class TeensyHardware5 : public ArduinoHardware {
+  public:
+  TeensyHardware5():ArduinoHardware(&Serial5, 115200){};
+};
+
+ros::NodeHandle_<TeensyHardware5>  nh;
+void messageCb(const std_msgs::String& input_msg);
+ros::Subscriber<std_msgs::String> sub("track_cmds", messageCb);
+std_msgs::String track_status_msg;
+ros::Publisher track_status("track_status", &track_status_msg);
 
 // Motor variables
 Encoder encA(motor_encA1, motor_encA2);
@@ -22,6 +41,30 @@ SBUS x8r(Serial1);
 uint16_t rc_input[16];
 bool rc_failSafe;
 bool rc_lostFrame;
+
+void messageCb(const std_msgs::String& input_msg){
+	const String msg = input_msg.data;
+	Log.verbose("Received message from brain: '" + msg + "'");
+	if(msg == "Lon") {
+		set_headlights(true);
+	}else if(msg == "Loff"){
+		set_headlights(false);
+	}else{
+		Log.error("Invalid message, ignored");
+	}
+}
+
+void setup_ros() {
+  nh.initNode();
+  nh.advertise(track_status);
+  nh.subscribe(sub);
+}
+
+void publish_ros(const String s) {
+  track_status_msg.data = s.c_str();
+  track_status.publish(&track_status_msg);
+  nh.spinOnce();
+}
 
 void setup_motors(){
 	// Turn on motors and set to forward
@@ -47,11 +90,14 @@ void setup_logging(){
 
 // Publish a message to the outside world
 void publish(const String s){
-	Serial5.println(s);
+	// Serial5.println(s);
+	publish_ros(s);
+	delay(100);
 }
 
 void setup_publish(){
 	Serial5.begin(115200);
+	setup_ros();
 }
 
 void set_headlights(bool b){

@@ -1,10 +1,12 @@
-FROM ros:foxy
+FROM ros:noetic
 
 # install ros package
 RUN apt-get update && apt-get install -y \
-      ros-${ROS_DISTRO}-demo-nodes-cpp \
-      ros-${ROS_DISTRO}-demo-nodes-py \
-      ros-${ROS_DISTRO}-desktop && \
+      ros-${ROS_DISTRO}-desktop-full \
+      python3-rosdep \
+      python3-rosinstall \
+      python3-rosinstall-generator \
+      python3-wstool build-essential && \
     rm -rf /var/lib/apt/lists/*
 
 # Install openvino from apt
@@ -52,8 +54,14 @@ RUN service ssh start
 RUN curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash - && \
   apt-get install -y nodejs
 
+# install other pkgs
+RUN apt-get install -y ros-noetic-rosserial-python
+
 USER dgorissen
 WORKDIR /home/dgorissen
+
+# Update rosdep
+RUN rosdep update
 
 ENV vinodist=l_openvino_toolkit_runtime_ubuntu20_p_2021.2.185
 # ENV vinodist=l_openvino_toolkit_runtime_raspbian_p_2021.2.185
@@ -74,12 +82,17 @@ source ~/openvino/bin/setupvars.sh \n\
 ' >> ~/.bashrc
 
 RUN ~/.pyenv/bin/pyenv global 3.7.10
-RUN READTHEDOCS=True /home/dgorissen/.pyenv/shims/pip install picamera imutils numpy flask
+RUN READTHEDOCS=True /home/dgorissen/.pyenv/shims/pip install \
+  picamera imutils numpy flask flask_cors pyyaml rospkg pyserial platformio
 
-RUN mkdir ~/cbrain
+RUN mkdir ~/clare
 
 EXPOSE 22
 EXPOSE 5000
+EXPOSE 8080
 
-WORKDIR /home/dgorissen/cbrain
-CMD /home/dgorissen/.pyenv/shims/python3 app.py
+WORKDIR /home/dgorissen/clare
+
+CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
+
+# CMD ["/usr/sbin/sshd", "-D"]
