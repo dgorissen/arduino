@@ -1,4 +1,4 @@
-rootdir=/Users/dirk.gorissen/code/arduino/clare/
+rootdir=~/code/arduino/clare/
 track_teensy_usb=/dev/ttyACM0
 track_serial_usb=/dev/ttyUSB0
 build_arch ?= $(shell arch)
