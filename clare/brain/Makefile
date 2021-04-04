@@ -4,17 +4,21 @@ track_serial_usb=/dev/ttyUSB0
 build_arch ?= $(shell arch)
 real_arch = $(shell arch)
 
+ifeq ($(build_arch), armv7l)
+	vinodist=raspbian
+else
+	vinodist=ubuntu20
+endif
+
 build:
 	echo "Build arch is: ${build_arch} real arch is ${real_arch}"
 ifeq ($(build_arch), $(real_arch))
-	vinodist=ubuntu20
 	echo "=== Building for HOST"
 	sleep 2
 	docker build -t dgorissen/clare \
 	--build-arg vinodist=${vinodist} \
 	.
 else
-	vinodist=raspbian
 	echo "=== Building for ARM"
 	sleep 2
 	docker buildx use clare-builder
