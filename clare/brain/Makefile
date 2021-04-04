@@ -2,10 +2,18 @@ rootdir=/Users/dirk.gorissen/code/arduino/clare/
 track_teensy_usb=/dev/ttyACM0
 track_serial_usb=/dev/ttyUSB0
 build_arch ?= $(shell arch)
+real_arch = $(shell arch)
 
 build:
-	echo "Build arch is: ${build_arch}"
-ifeq ($(build_arch), armv7l)
+	echo "Build arch is: ${build_arch} real arch is ${real_arch}"
+ifeq ($(build_arch), $(real_arch))
+	vinodist=ubuntu20
+	echo "=== Building for HOST"
+	sleep 2
+	docker build -t dgorissen/clare \
+	--build-arg vinodist=${vinodist} \
+	.
+else
 	vinodist=raspbian
 	echo "=== Building for ARM"
 	sleep 2
@@ -14,13 +22,6 @@ ifeq ($(build_arch), armv7l)
 	--build-arg vinodist=${vinodist} \
 	--platform linux/arm/v7 \
 	--push .
-else
-	vinodist=ubuntu20
-	echo "=== Building for UBUNTU"
-	sleep 2
-	docker build -t dgorissen/clare \
-	--build-arg vinodist=${vinodist} \
-	.
 endif
 
 builder:
