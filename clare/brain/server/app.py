@@ -40,7 +40,7 @@ def connect():
 def headlights(status):
     if status == "on":
         TRACKS.set_headlights(True)
-    elif statis == "off"
+    elif status == "off"
         TRACKS.set_headlights(False)
     else:
         return "Invalid headlight status", 500
