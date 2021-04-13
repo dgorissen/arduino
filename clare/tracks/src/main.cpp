@@ -4,6 +4,7 @@
 #include "config.h"
 #include <ArduinoLog.h>
 #include "motor_utils.h"
+#include "state.h"
 #include "utils.h"
 #include <math.h>
 // So we can use a different serial port
@@ -13,11 +14,14 @@
 #include <std_msgs/String.h>
 #include <std_msgs/Empty.h>
 
+// Fwd declarations
+void set_headlights(bool b);
+
 // ROS variables
 // Wrapper class so we can use a custom serial port
 class TeensyHardware5 : public ArduinoHardware {
   public:
-  TeensyHardware5():ArduinoHardware(&Serial5, 115200){};
+  TeensyHardware5():ArduinoHardware(&Serial5, BAUD){};
 };
 
 ros::NodeHandle_<TeensyHardware5>  nh;
@@ -25,6 +29,9 @@ void messageCb(const std_msgs::String& input_msg);
 ros::Subscriber<std_msgs::String> sub("track_cmds", messageCb);
 std_msgs::String track_status_msg;
 ros::Publisher track_status("track_status", &track_status_msg);
+
+// State
+State state;
 
 // Motor variables
 Encoder encA(motor_encA1, motor_encA2);
@@ -44,7 +51,7 @@ bool rc_lostFrame;
 
 void messageCb(const std_msgs::String& input_msg){
 	const String msg = input_msg.data;
-	Log.verbose("Received message from brain: '" + msg + "'");
+	Log.verbose("Received message from brain: '%s'", msg);
 	if(msg == "Lon") {
 		set_headlights(true);
 	}else if(msg == "Loff"){
@@ -60,7 +67,7 @@ void setup_ros() {
   nh.subscribe(sub);
 }
 
-void publish_ros(const String s) {
+void publish_ros(const string s) {
   track_status_msg.data = s.c_str();
   track_status.publish(&track_status_msg);
   nh.spinOnce();
@@ -78,26 +85,31 @@ void setup_rc(){
 }
 
 void setup_logging(){
-	Serial.begin(115200);
+	Serial.begin(BAUD);
 	// Only useful if you want to catch setup output
 	//while(!Serial && !Serial.available()){}
 
 	// Available levels are:
-    // LOG_LEVEL_SILENT, LOG_LEVEL_FATAL, LOG_LEVEL_ERROR, LOG_LEVEL_WARNING, LOG_LEVEL_NOTICE, LOG_LEVEL_TRACE, LOG_LEVEL_VERBOSE
+    // LOG_LEVEL_SILENT, LOG_LEVEL_FATAL, LOG_LEVEL_ERROR, LOG_LEVEL_WARNING,
+	// LOG_LEVEL_NOTICE, LOG_LEVEL_TRACE, LOG_LEVEL_VERBOSE
     Log.begin(LOG_LEVEL_VERBOSE, &Serial);
     //Log.begin(LOG_LEVEL_NOTICE, &Serial);
 }
 
 // Publish a message to the outside world
-void publish(const String s){
+void publish(const string s){
 	// Serial5.println(s);
 	publish_ros(s);
 	delay(100);
 }
 
 void setup_publish(){
-	Serial5.begin(115200);
+	Serial5.begin(BAUD);
 	setup_ros();
+}
+
+bool read_headlights(){
+	return digitalRead(headlights) == HIGH;
 }
 
 void set_headlights(bool b){
@@ -211,20 +223,9 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 	vR = (int) (rawR * 255.0);
 }
 
-void rc_mode(){
-  // look for a good SBUS packet from the receiver
-  if(x8r.read(&rc_input[0], &rc_failSafe, &rc_lostFrame)){
-	// Read the values for each channel
-	const int ch1 = rc_input[0];
-	const int ch2 = rc_input[1];
-	const int ch3 = rc_input[2];
-	const int ch4 = rc_input[3];
-	//Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
-
-	int vL = -999;
-	int vR = -999;
-	//dual_joystick(ch1, ch3, vL, vR);
-	single_joystick(ch4, ch1, vL, vR);
+void set_motor_speeds(const int chA, const int chB, int &vL, int &vR) {
+	//dual_joystick(chA, chB, vL, vR);
+	single_joystick(chA, chB, vL, vR);
 	
 	// Handle deadband and reversing
 	const int deadband = motor_deadband;
@@ -261,23 +262,35 @@ void rc_mode(){
 	
 	Log.verbose("Motor speeds calculated as %d, %d\n", vL, vR);
 
-	// Set the headlights appropriately
-	if(directionR == fwd || directionL == fwd) {
-		set_headlights(true);
-	} else{
-		set_headlights(false);
-	}
-
 	// Command the motors
 	set_speed(vL, vR);
-	publish("L=" + String(vL) + ",R=" + String(vR));
+}
+
+void rc_mode(){
+  // look for a good SBUS packet from the receiver
+  if(x8r.read(&rc_input[0], &rc_failSafe, &rc_lostFrame)){
+	// Read the values for each channel
+	const int ch1 = rc_input[0];
+	const int ch2 = rc_input[1];
+	const int ch3 = rc_input[2];
+	const int ch4 = rc_input[3];
+	//Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
+
+	int vL = -999;
+	int vR = -999;
+	set_motor_speeds(ch1, ch2, vL, vR);
+	
+	// Update the state
+	state.setMotors(vL, vR);
 
   } else {
+	  // No good packet received, whats the reason
 	  if(rc_failSafe){
 			Log.warning("FAILSAFE TRIGGERED\n");
 			// Stop motors
 			set_speed(0, 0);
-			publish("L=0,R=0");
+			// Update the state
+			state.setMotors(0, 0);
 	  } else if (rc_lostFrame){
 		  	Log.warning("FRAME LOST\n");
 	  }else{
@@ -298,12 +311,25 @@ void read_encoders() {
   if(newB != encB_pos){
 	  encB_pos = newB;
   }
-
-  publish("EL=" + String(encA_pos) + ",ER=" + String(encB_pos));
-  Log.verbose("Encoders set to %d, %d\n", encA_pos, encB_pos);
 }
 
 void loop() {
-	read_encoders();
+	// Always manual rc mode...for now..
+	state.setMode(MANUAL);
+	
+	//This sets the motor state fields internally
 	rc_mode();
+
+	read_encoders();
+	state.setEncoders(encA_pos, encB_pos);
+
+	bool hl = read_headlights();
+	state.setHeadlights(hl);
+
+	if(state.isModified()) {
+		const string s = state.serialise();
+		publish(s);
+		Log.verbose("State: %s\n", s);
+		state.clearStatus();
+	}
 }
