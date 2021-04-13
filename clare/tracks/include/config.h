@@ -1,6 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
- 
+
+const long BAUD = 115200;
 const double EPS = 0.001;
  
 // Motor A connections
