@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y build-essential cmake \
    libx264-dev libgtk-3-dev libcanberra-gtk* \
    libatlas-base-dev gfortran python3-dev 
 
-RUN useradd -ms /bin/bash dgorissen && \
+RUN groupadd -r -g 1001 dgorissen && useradd -ms /bin/bash -u 1001 -g 1001 dgorissen && \
   usermod -a -G users dgorissen && \
   usermod -a -G dialout dgorissen && \
   usermod -a -G sudo dgorissen
@@ -56,6 +56,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash - && \
   apt-get install -y nodejs
 
 # install other pkgs
+RUN npm install -g @vue/cli
 RUN apt-get install -y ros-noetic-rosserial-python
 
 USER dgorissen
@@ -98,6 +99,10 @@ RUN wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2021
 
 RUN echo '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
+' >> ~/.bashrc
+
+RUN echo '\n### \n\
+source /opt/ros/noetic/setup.bash \n\
 ' >> ~/.bashrc
 
 # Install model zoo downloader

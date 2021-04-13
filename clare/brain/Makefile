@@ -75,3 +75,4 @@ push:
 
 clean:
 	docker builder prune -a -f
+	docker system prune -f
