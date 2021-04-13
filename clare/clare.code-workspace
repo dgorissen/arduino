@@ -7,5 +7,12 @@
 			"path": "tracks"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"files.associations": {
+			"string": "cpp",
+			"filesystem": "cpp",
+			"iosfwd": "cpp",
+			"sstream": "cpp"
+		}
+	}
 }
