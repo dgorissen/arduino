@@ -51,13 +51,13 @@ bool rc_lostFrame;
 
 void messageCb(const std_msgs::String& input_msg){
 	const String msg = input_msg.data;
-	Log.verbose("Received message from brain: '%s'", msg);
+	Log.verbose("Received message from brain: '%s'\n", msg);
 	if(msg == "Lon") {
 		set_headlights(true);
 	}else if(msg == "Loff"){
 		set_headlights(false);
 	}else{
-		Log.error("Invalid message, ignored");
+		Log.error("Invalid message, ignored\n");
 	}
 }
 
@@ -294,7 +294,7 @@ void rc_mode(){
 	  } else if (rc_lostFrame){
 		  	Log.warning("FRAME LOST\n");
 	  }else{
-		  	//Log.warning("No good packet received");
+		  	//Log.warning("No good packet received\n");
 			delay(100);
 	  }
   }
@@ -332,4 +332,6 @@ void loop() {
 		Log.verbose("State: %s\n", s);
 		state.clearStatus();
 	}
+
+	delay(100);
 }
