@@ -1,5 +1,5 @@
 #include "state.h"
-#include <sstream> 
+#include "Arduino.h"
 
 State::State() {
     fStatus = UNKNOWN;
@@ -56,13 +56,12 @@ void State::setMode(const Mode m) {
     }
 }
 
-string State::serialise() const {
-    std::stringstream ss;
-    ss << "ML:" << fMotorL << ","
-       << "MR:" << fMotorR << ","
-       << "EL:" << fEncoderL << ","
-       << "ER:" << fEncoderR << ","
-       << "H:" << fHeadlights << ","
-       << "M:" << fMode;
-     return ss.str();
+String State::serialise() const {
+    String s = String("ML:") + fMotorL + ","
+       "MR:" + fMotorR + "," +
+       "EL:" + fEncoderL + "," +
+       "ER:" + fEncoderR + "," +
+       "H:" + fHeadlights + "," +
+       "M:" + fMode;
+    return s;
 }

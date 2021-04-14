@@ -12,7 +12,15 @@
 			"string": "cpp",
 			"filesystem": "cpp",
 			"iosfwd": "cpp",
-			"sstream": "cpp"
+			"sstream": "cpp",
+			"ios": "cpp",
+			"istream": "cpp",
+			"locale": "cpp",
+			"numeric": "cpp",
+			"ostream": "cpp",
+			"random": "cpp",
+			"*.tcc": "cpp",
+			"fstream": "cpp"
 		}
 	}
 }

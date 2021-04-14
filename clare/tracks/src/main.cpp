@@ -65,9 +65,11 @@ void setup_ros() {
   nh.initNode();
   nh.advertise(track_status);
   nh.subscribe(sub);
+  //while(!nh.connected()) nh.spinOnce();
+  //nh.loginfo("Startup complete");
 }
 
-void publish_ros(const string s) {
+void publish_ros(const String s) {
   track_status_msg.data = s.c_str();
   track_status.publish(&track_status_msg);
   nh.spinOnce();
@@ -92,19 +94,19 @@ void setup_logging(){
 	// Available levels are:
     // LOG_LEVEL_SILENT, LOG_LEVEL_FATAL, LOG_LEVEL_ERROR, LOG_LEVEL_WARNING,
 	// LOG_LEVEL_NOTICE, LOG_LEVEL_TRACE, LOG_LEVEL_VERBOSE
-    Log.begin(LOG_LEVEL_VERBOSE, &Serial);
-    //Log.begin(LOG_LEVEL_NOTICE, &Serial);
+    //Log.begin(LOG_LEVEL_VERBOSE, &Serial);
+    Log.begin(LOG_LEVEL_NOTICE, &Serial);
 }
 
 // Publish a message to the outside world
-void publish(const string s){
-	// Serial5.println(s);
+void publish(const String s){
+	//Serial5.println(s);
 	publish_ros(s);
-	delay(100);
+	//delay(100);
 }
 
 void setup_publish(){
-	Serial5.begin(BAUD);
+	//Serial5.begin(BAUD);
 	setup_ros();
 }
 
@@ -278,7 +280,7 @@ void rc_mode(){
 
 	int vL = -999;
 	int vR = -999;
-	set_motor_speeds(ch1, ch2, vL, vR);
+	set_motor_speeds(ch4, ch1, vL, vR);
 	
 	// Update the state
 	state.setMotors(vL, vR);
@@ -327,11 +329,11 @@ void loop() {
 	state.setHeadlights(hl);
 
 	if(state.isModified()) {
-		const string s = state.serialise();
+		const String s = state.serialise();
 		publish(s);
-		Log.verbose("State: %s\n", s);
+		Log.notice("State: %s\n", s.c_str());
 		state.clearStatus();
 	}
 
-	delay(100);
+	//delay(100);
 }

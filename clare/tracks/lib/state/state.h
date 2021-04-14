@@ -1,8 +1,7 @@
 #ifndef STATE_H
 #define STATE_H
 
-#include <string>
-using std::string;
+#include "Arduino.h"
 
 enum Mode {MANUAL=1, AUTONOMOUS=2};
 enum Status {UNKNOWN=1, SET=2, MODIFIED=3};
@@ -27,7 +26,7 @@ public:
    void setEncoders(const long l, const long r);
    void setHeadlights(const bool h);
    void setMode(const Mode m);
-   string serialise() const;
+   String serialise() const;
    void clearStatus();
    bool isModified() const;
 };
