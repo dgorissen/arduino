@@ -23,9 +23,9 @@ class Tracks:
 
     def set_headlights(self, state):
         if state:
-            msg = "Lon"
+            msg = "H:1"
         else:
-            msg = "Loff"
+            msg = "H:0"
         
         rospy.loginfo(msg)
         self._pub.publish(msg)
