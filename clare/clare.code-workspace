@@ -20,7 +20,15 @@
 			"ostream": "cpp",
 			"random": "cpp",
 			"*.tcc": "cpp",
-			"fstream": "cpp"
+			"fstream": "cpp",
+			"__config": "cpp",
+			"optional": "cpp",
+			"utility": "cpp",
+			"bitset": "cpp",
+			"functional": "cpp",
+			"streambuf": "cpp",
+			"__tree": "cpp",
+			"set": "cpp"
 		}
 	}
 }

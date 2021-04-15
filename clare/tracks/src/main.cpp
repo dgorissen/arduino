@@ -25,13 +25,18 @@ class TeensyHardware5 : public ArduinoHardware {
 };
 
 ros::NodeHandle_<TeensyHardware5>  nh;
-void messageCb(const std_msgs::String& input_msg);
-ros::Subscriber<std_msgs::String> sub("track_cmds", messageCb);
+void command_callback(const std_msgs::String& input_msg);
+ros::Subscriber<std_msgs::String> sub("track_cmds", command_callback);
 std_msgs::String track_status_msg;
 ros::Publisher track_status("track_status", &track_status_msg);
 
+// Where to publish 
+const String pubto = "ros";
+//const String pubto = "serial"
+
 // State
-State state;
+State state_out;
+State state_in;
 
 // Motor variables
 Encoder encA(motor_encA1, motor_encA2);
@@ -49,15 +54,15 @@ uint16_t rc_input[16];
 bool rc_failSafe;
 bool rc_lostFrame;
 
-void messageCb(const std_msgs::String& input_msg){
-	const String msg = input_msg.data;
-	Log.verbose("Received message from brain: '%s'\n", msg);
-	if(msg == "Lon") {
-		set_headlights(true);
-	}else if(msg == "Loff"){
-		set_headlights(false);
-	}else{
-		Log.error("Invalid message, ignored\n");
+void command_callback(const std_msgs::String& input_msg){
+	Log.verbose("Received command from brain: '%s'\n", input_msg);
+	bool res = State::parseState(input_msg.data, state_in);
+
+	if(!res) {
+		Log.error("Invalid command, failed to parse, ignored\n");
+		state_in.reset();
+	} else {
+		Log.verbose("Successfully parsed command message\n");
 	}
 }
 
@@ -72,7 +77,6 @@ void setup_ros() {
 void publish_ros(const String s) {
   track_status_msg.data = s.c_str();
   track_status.publish(&track_status_msg);
-  nh.spinOnce();
 }
 
 void setup_motors(){
@@ -100,14 +104,19 @@ void setup_logging(){
 
 // Publish a message to the outside world
 void publish(const String s){
-	//Serial5.println(s);
-	publish_ros(s);
-	//delay(100);
+	if(pubto == "ros"){
+		publish_ros(s);
+	} else {
+		Serial5.println(s);
+	}
 }
 
 void setup_publish(){
-	//Serial5.begin(BAUD);
-	setup_ros();
+	if(pubto == "ros"){
+		setup_ros();
+	} else {
+		Serial5.begin(BAUD);
+	}
 }
 
 bool read_headlights(){
@@ -133,7 +142,6 @@ void setup() {
 	setup_motors();
 	setup_rc();
 	setup_headlights();
-	publish("Setup done");
 	Log.notice("Setup done\n");
 }
 
@@ -283,7 +291,7 @@ void rc_mode(){
 	set_motor_speeds(ch4, ch1, vL, vR);
 	
 	// Update the state
-	state.setMotors(vL, vR);
+	state_out.setMotors(vL, vR);
 
   } else {
 	  // No good packet received, whats the reason
@@ -292,12 +300,14 @@ void rc_mode(){
 			// Stop motors
 			set_speed(0, 0);
 			// Update the state
-			state.setMotors(0, 0);
+			state_out.setMotors(0, 0);
+			// Give some time
+			delay(100);
 	  } else if (rc_lostFrame){
 		  	Log.warning("FRAME LOST\n");
 	  }else{
 		  	//Log.warning("No good packet received\n");
-			delay(100);
+			delay(10);
 	  }
   }
 }
@@ -315,28 +325,57 @@ void read_encoders() {
   }
 }
 
-void loop() {
-	// Always manual rc mode...for now..
-	state.setMode(MANUAL);
-	
-	//This sets the motor state fields internally
-	rc_mode();
-
-	read_encoders();
-	state.setEncoders(encA_pos, encB_pos);
-
-	bool hl = read_headlights();
-	state.setHeadlights(hl);
-
-	if(state.isModified()) {
-		const String s = state.serialise();
-		publish(s);
-		Log.notice("State: %s\n", s.c_str());
-		state.clearStatus();
+void act_upon_commands() {
+	// Set the control mode
+	if(state_in.getMode() == AUTONOMOUS) {
+		// TODO implement
+		state_out.setMode(AUTONOMOUS);
+	} else if(state_in.getMode() == MANUAL) {
+		// Follow RC commands
+		// This sets the motor state_out fields internally
+		rc_mode();
+		state_out.setMode(MANUAL);
 	} else {
-		// Keep rosserial synced and process incomming
-		nh.spinOnce();
+		// Mode not specified, dont change anything
+	}
+	
+	// set the headlights
+	if(state_in.getHeadlights() == HL_ON) {
+		set_headlights(true);
+	} else if(state_in.getHeadlights() == HL_OFF) {
+		set_headlights(false);
+	} else {
+		// not set, nothing to do
 	}
 
-	//delay(100);
+	// All actions taken, clear all values
+	state_in.reset();
+}
+
+void loop() {
+	// Did we receive any instructions?
+	if(state_in.isModified()) {
+		// Act upon any commands
+		act_upon_commands();
+	} else {
+		// No instructions, default to one manual iteration
+		rc_mode();
+		state_out.setMode(MANUAL);
+	}
+	
+	// Set and publish the output state
+	read_encoders();
+	state_out.setEncoders(encA_pos, encB_pos);
+	state_out.setHeadlights(read_headlights());
+
+	// To avoid spamming, only publish if something changed
+	if(state_out.isModified()) {
+		const String s = state_out.serialise();
+		publish(s);
+		Log.notice("Published state: %s\n", s.c_str());
+		state_out.clearStatus();
+	}
+
+	// Keep rosserial synced and process incomming msgs
+	nh.spinOnce();
 }
