@@ -284,13 +284,14 @@ void rc_mode(){
 	const int ch2 = rc_input[1];
 	const int ch3 = rc_input[2];
 	const int ch4 = rc_input[3];
-	//Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
+	Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
 
 	int vL = -999;
 	int vR = -999;
 	set_motor_speeds(ch4, ch1, vL, vR);
 	
 	// Update the state
+	state_out.setMode(MANUAL);
 	state_out.setMotors(vL, vR);
 
   } else {
@@ -301,10 +302,12 @@ void rc_mode(){
 			set_speed(0, 0);
 			// Update the state
 			state_out.setMotors(0, 0);
+			state_out.setMode(FAILSAFE);
 			// Give some time
 			delay(100);
 	  } else if (rc_lostFrame){
 		  	Log.warning("FRAME LOST\n");
+			delay(50);
 	  }else{
 		  	//Log.warning("No good packet received\n");
 			delay(10);
@@ -332,9 +335,8 @@ void act_upon_commands() {
 		state_out.setMode(AUTONOMOUS);
 	} else if(state_in.getMode() == MANUAL) {
 		// Follow RC commands
-		// This sets the motor state_out fields internally
+		// This sets the mode and motor state_out fields internally
 		rc_mode();
-		state_out.setMode(MANUAL);
 	} else {
 		// Mode not specified, dont change anything
 	}
@@ -360,7 +362,6 @@ void loop() {
 	} else {
 		// No instructions, default to one manual iteration
 		rc_mode();
-		state_out.setMode(MANUAL);
 	}
 	
 	// Set and publish the output state
@@ -374,6 +375,9 @@ void loop() {
 		publish(s);
 		Log.notice("Published state: %s\n", s.c_str());
 		state_out.clearStatus();
+	} else {
+		const String s = state_out.serialise();
+		Log.verbose("State not changed/published: %s\n", s.c_str());
 	}
 
 	// Keep rosserial synced and process incomming msgs

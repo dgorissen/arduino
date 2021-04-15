@@ -3,7 +3,7 @@
 
 #include "Arduino.h"
 
-enum Mode {M_NOTSET=-1, MANUAL=1, AUTONOMOUS=2};
+enum Mode {M_NOTSET=-1, MANUAL=1, AUTONOMOUS=2, FAILSAFE=3};
 enum Status {S_NOTSET=-1, SET=1, MODIFIED=2};
 enum Headlights {HL_NOTSET=-1, HL_OFF=0, HL_ON=1};
 
