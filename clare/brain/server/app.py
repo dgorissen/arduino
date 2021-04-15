@@ -38,6 +38,9 @@ def connect():
 
 @app.route("/headlights/<status>")
 def headlights(status):
+    if not connected():
+        return "Not connected", 403
+
     if status == "on":
         TRACKS.set_headlights(True)
     elif status == "off":
