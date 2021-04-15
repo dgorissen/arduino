@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <Encoder.h>
-#include "SBUS.h"
+#include "sbus.h"
 #include "config.h"
 #include <ArduinoLog.h>
 #include "motor_utils.h"
@@ -47,7 +47,7 @@ MotorDir directionL;
 MotorDir directionR;
 
 // Sbus object on hardware serial port
-SBUS x8r(Serial1);
+SbusRx x8r(&Serial1);
 
 // channel, fail safe, and lost frames data
 uint16_t rc_input[16];
@@ -87,7 +87,7 @@ void setup_motors(){
 }
 
 void setup_rc(){
-	x8r.begin();
+	x8r.Begin();
 }
 
 void setup_logging(){
@@ -239,7 +239,7 @@ void set_motor_speeds(const int chA, const int chB, int &vL, int &vR) {
 	
 	// Handle deadband and reversing
 	const int deadband = motor_deadband;
-	
+
 	if((-deadband <= vL) && (vL <= deadband)){
 		vL = 0;
 	}else if(vL < -deadband) {
@@ -278,40 +278,35 @@ void set_motor_speeds(const int chA, const int chB, int &vL, int &vR) {
 
 void rc_mode(){
   // look for a good SBUS packet from the receiver
-  if(x8r.read(&rc_input[0], &rc_failSafe, &rc_lostFrame)){
-	// Read the values for each channel
-	const int ch1 = rc_input[0];
-	const int ch2 = rc_input[1];
-	const int ch3 = rc_input[2];
-	const int ch4 = rc_input[3];
-	Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
+  if (x8r.Read()) {
+    if(x8r.failsafe()) {
+		Log.warning("FAILSAFE TRIGGERED\n");
+		// Stop motors
+		set_speed(0, 0);
+		// Update the state
+		state_out.setMotors(0, 0);
+		state_out.setMode(FAILSAFE);
+		// Give some time
+		delay(100);
+	} else {
+		// Read the values for each channel
+		const int ch1 = x8r.rx_channels()[0];
+		const int ch2 = x8r.rx_channels()[1];
+		const int ch3 = x8r.rx_channels()[2];
+		const int ch4 = x8r.rx_channels()[3];
+		Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
 
-	int vL = -999;
-	int vR = -999;
-	set_motor_speeds(ch4, ch1, vL, vR);
-	
-	// Update the state
-	state_out.setMode(MANUAL);
-	state_out.setMotors(vL, vR);
+		int vL = -999;
+		int vR = -999;
+		set_motor_speeds(ch4, ch1, vL, vR);
 
+		// Update the state
+		state_out.setMode(MANUAL);
+		state_out.setMotors(vL, vR);
+	}
   } else {
-	  // No good packet received, whats the reason
-	  if(rc_failSafe){
-			Log.warning("FAILSAFE TRIGGERED\n");
-			// Stop motors
-			set_speed(0, 0);
-			// Update the state
-			state_out.setMotors(0, 0);
-			state_out.setMode(FAILSAFE);
-			// Give some time
-			delay(100);
-	  } else if (rc_lostFrame){
-		  	Log.warning("FRAME LOST\n");
-			delay(50);
-	  }else{
-		  	//Log.warning("No good packet received\n");
-			delay(10);
-	  }
+	  Log.verbose("Failed to read a good RC packet");
+	  delay(20);
   }
 }
 
