@@ -1,6 +1,5 @@
 #include "state.h"
 #include "Arduino.h"
-#include "SafeString.h"
 
 State::State() {
     reset();
