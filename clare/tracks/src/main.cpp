@@ -333,6 +333,9 @@ void loop() {
 		publish(s);
 		Log.notice("State: %s\n", s.c_str());
 		state.clearStatus();
+	} else {
+		// Keep rosserial synced and process incomming
+		nh.spinOnce();
 	}
 
 	//delay(100);
