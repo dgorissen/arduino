@@ -8,6 +8,7 @@ class Tracks:
         self._status_topic = "track_status"
         self._connected = False
         self._pub = None
+        self._state = {}
 
     def connect(self, disable_signals=False):
         rospy.init_node(self._node_name, anonymous=False, disable_signals=disable_signals)
@@ -30,8 +31,22 @@ class Tracks:
         rospy.loginfo(msg)
         self._pub.publish(msg)
 
+    def headlights(self):
+        s = self._state.get("H", "0")
+        return True if s == '1' else False
+
+    def parse_state(self, s):
+        for item in s.split(","):
+            cmd, val = [x.strip() for x in item.split(":")]
+            self._state[cmd] = val
+    
+    def get_state(self):
+        return self._state
+
+    # TODO: push to ringbuffer
     def status_callback(self, data):
-        rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
+        # rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
+        self.parse_state(data.data);
 
     def is_connected(self):
         return self._connected

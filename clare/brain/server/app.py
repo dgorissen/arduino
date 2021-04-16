@@ -31,13 +31,22 @@ def index():
         "connected": connected()
     })
 
-@app.route("/connect")
+@app.route("/tracks/connect")
 def connect():
     connect_to_tracks()
     return ('',200)
 
-@app.route("/headlights/<status>")
-def headlights(status):
+@app.route("/tracks/headlights")
+def headlights():
+    if not connected():
+        return "Not connected", 403
+
+    return jsonify({
+        "value": TRACKS.headlights()
+    })
+
+@app.route("/tracks/headlights/<status>")
+def set_headlights(status):
     if not connected():
         return "Not connected", 403
 
@@ -50,11 +59,17 @@ def headlights(status):
 
     return f'Headlights set to {status}', 200
 
-@app.route("/stream")
+@app.route("/tracks/state")
+def tracks_state():
+    if not connected():
+        return "Not connected", 403
+    return jsonify(TRACKS.get_state())
+
+@app.route("/tracks/stream")
 def stream():
     return Response(event_stream(), mimetype="text/event-stream")
 
 
 if __name__ == "__main__":
     # Important not threaded given our global state
-    app.run(host='0.0.0.0', threaded=False)
+    app.run(host='0.0.0.0', threaded=True)
