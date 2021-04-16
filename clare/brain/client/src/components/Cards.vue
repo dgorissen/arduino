@@ -62,7 +62,8 @@ export default {
       axios
         .get(api + "/tracks/connect")
         .then((res) => {
-          this.connected = res.data.connected;
+          this.connected = true;
+          console.log("Connected: " + res.data);
         })
         .catch((err) => {
           console.log(err);
@@ -85,15 +86,17 @@ export default {
     // Temporarily get state
     // TODO: replace by event source
     setInterval(() => {
-      axios
-        .get(api + "/tracks/state")
-        .then((response) => {
-          this.state = response.data;
-        })
-        .catch((err) => {
-          console.log(err);
-          this.state = 'Failed to get state';
-        });
+        if(this.connected) {
+          axios
+          .get(api + "/tracks/state")
+          .then((response) => {
+            this.state = response.data;
+          })
+          .catch((err) => {
+            console.log(err);
+            this.state = 'Failed to get state';
+          });
+        }
     }, 2000);
   },
 };

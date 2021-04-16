@@ -34,7 +34,7 @@ def index():
 @app.route("/tracks/connect")
 def connect():
     connect_to_tracks()
-    return ('',200)
+    return ('Connected',200)
 
 @app.route("/tracks/headlights")
 def headlights():
