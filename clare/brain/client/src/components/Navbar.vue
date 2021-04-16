@@ -2,7 +2,7 @@
     <div>
       <b-navbar style="margin-bottom: 20px;" toggleable="lg" type="dark" variant="success">
         <b-container>
-            <b-navbar-brand href="#">CLARE - Come Look At Robot Entertainment</b-navbar-brand>
+            <b-navbar-brand href="#">C.L.A.R.E. - Come Look At Robot Entertainment</b-navbar-brand>
             <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
             <b-collapse id="nav-collapse" is-nav>
               <!-- Right aligned nav items -->
