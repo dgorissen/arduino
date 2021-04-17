@@ -23,7 +23,7 @@ ifeq ($(build_arch), $(real_arch))
 	--build-arg vinodist=${vinodist} \
 	.
 else
-	echo "=== Building for ARM"
+	echo "=== Building for ARM, vinodist is ${vinodist}"
 	sleep 2
 	docker buildx use clare-builder
 	docker buildx build -t dgorissen/clare \

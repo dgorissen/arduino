@@ -93,9 +93,17 @@ ARG vinodist=ubuntu20
 # ARG vinodist=raspbian
 ARG vinofile=l_openvino_toolkit_runtime_${vinodist}_p_2021.3.394
 
+SHELL ["/bin/bash", "-c"]
+
 RUN wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.3/${vinofile}.tgz && \
   tar -xf ${vinofile}.tgz && \
-  mv ${vinofile} openvino 
+  mv ${vinofile} openvino
+
+RUN cd openvino && \
+  source bin/setupvars.sh && \
+  mkdir build_samples && cd build_samples && \
+  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-march=armv7-a" ~/openvino/deployment_tools/inference_engine/samples/cpp && \
+  make -j 2
 
 RUN echo '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
@@ -106,9 +114,10 @@ source /opt/ros/noetic/setup.bash \n\
 ' >> ~/.bashrc
 
 # Install model zoo downloader
-RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
+RUN cd ~ && git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   cd open_model_zoo/tools/downloader && \
-  /home/dgorissen/.pyenv/shims/pip install -r requirements.in
+  /home/dgorissen/.pyenv/shims/pip install -r requirements.in && \
+  python3 downloader.py --name face-detection-adas-0001
 
 RUN mkdir ~/clare
 WORKDIR /home/dgorissen/clare
@@ -116,6 +125,10 @@ WORKDIR /home/dgorissen/clare
 EXPOSE 22
 EXPOSE 5000
 EXPOSE 8080
+EXPOSE 11311
+
+# TODO: install usbutils
+
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
 
