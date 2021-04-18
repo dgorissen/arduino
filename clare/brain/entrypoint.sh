@@ -9,6 +9,8 @@ mkdir -p $LOGS
 rm $LOGS/*
 
 # Start ROS master
+export ROS_HOSTNAME=localhost
+export ROS_MASTER_URI=http://localhost:11311
 roscore -v --master-logger-level=info 2>&1 | tee $LOGS/roscore.txt &
 echo $! > $LOGS/roscore.pid
 
@@ -16,8 +18,6 @@ echo "Givng roscore some time to start"
 sleep 5
 
 # Connect to tracks
-export ROS_HOSTNAME=localhost
-export ROS_MASTER_URI=http://localhost:11311
 rosrun rosserial_python serial_node.py _baud:=115200 _port:="${track_serial_usb}"  2>&1 | tee $LOGS/tracks.txt &
 echo $! > $LOGS/tracks.pid
 
