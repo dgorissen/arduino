@@ -53,13 +53,14 @@ runpi:
 	-p5000:5000 -p11311:11311 -p8080:8080 \
 	--device=${track_teensy_usb} \
 	--device=${track_serial_usb} \
+	--device /dev/gpiomem \
 	--privileged \
 	--network=host \
 	-v /dev:/dev \
 	--name cbrain \
 	dgorissen/clare
 
-	# Unfortunately privileged, /dev, and network=host is all needed
+	# Unfortunately privileged, /dev, and host network is all needed
 	# to thet the neural compute stick to work inside docker
 
 runshell:
