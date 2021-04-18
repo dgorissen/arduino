@@ -9,24 +9,6 @@ RUN apt-get update && apt-get install -y \
       python3-wstool build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-# Install openvino from apt
-# docs: https://docs.openvinotoolkit.org/latest/openvino_docs_install_guides_installing_openvino_docker_linux.html
-# https://github.com/openvinotoolkit/docker_ci/blob/master/dockerfiles/ubuntu18/openvino_c_base_2021.dockerfile
-
-# ARG PUBLIC_KEY="https://apt.repos.intel.com/openvino/2021/GPG-PUB-KEY-INTEL-OPENVINO-2021"
-# ARG APT_REPOSITORY="deb https://apt.repos.intel.com/openvino/2021 all main"
-
-# # Install full package
-# RUN curl -o GPG-PUB-KEY-INTEL-OPENVINO-2021 ${PUBLIC_KEY} && \
-#     apt-key add GPG-PUB-KEY-INTEL-OPENVINO-2021 && \
-#     echo ${APT_REPOSITORY} | tee - a /etc/apt/sources.list.d/intel-openvino-2021.list && \
-#     apt-get update && \
-#     apt-cache search openvino && \
-#     apt-get install -y \
-# 	 intel-openvino-dev-ubuntu20-2021.2.200 \
-#          intel-openvino-runtime-ubuntu20-2021.2.200 && \
-#     rm -rf /var/lib/apt/lists/*
-
 # Install openvino from source
 RUN apt-get update && apt-get install -y build-essential cmake \
    unzip pkg-config libjpeg-dev libpng-dev \
@@ -85,7 +67,7 @@ eval "$(pyenv virtualenv-init -)" \n\
 
 RUN ~/.pyenv/bin/pyenv global 3.7.10
 RUN READTHEDOCS=True /home/dgorissen/.pyenv/shims/pip install \
-  picamera imutils numpy flask flask_cors pyyaml rospkg pyserial platformio
+  picamera imutils numpy flask flask_cors pyyaml rospkg pyserial platformio netifaces
 
 # Install openvino
 
@@ -105,31 +87,25 @@ RUN cd openvino && \
   cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-march=armv7-a" ~/openvino/deployment_tools/inference_engine/samples/cpp && \
   make -j 2
 
-RUN echo '\n### \n\
-source ~/openvino/bin/setupvars.sh \n\
-' >> ~/.bashrc
-
-RUN echo '\n### \n\
-source /opt/ros/noetic/setup.bash \n\
-' >> ~/.bashrc
-
 # Install model zoo downloader
 RUN cd ~ && git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   cd open_model_zoo/tools/downloader && \
   /home/dgorissen/.pyenv/shims/pip install -r requirements.in && \
   python3 downloader.py --name face-detection-adas-0001
 
+RUN echo -e '\n### \n\
+source ~/openvino/bin/setupvars.sh \n\
+source /opt/ros/noetic/setup.bash \n\
+' >> ~/.bashrc
+
 RUN mkdir ~/clare
 WORKDIR /home/dgorissen/clare
 
-EXPOSE 22
 EXPOSE 5000
 EXPOSE 8080
 EXPOSE 11311
 
-# TODO: install usbutils
-
+# TODO: install usbutils feh
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
 
-# CMD ["/usr/sbin/sshd", "-D"]
