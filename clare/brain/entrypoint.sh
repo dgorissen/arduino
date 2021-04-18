@@ -15,7 +15,7 @@ roscore -v --master-logger-level=info 2>&1 | tee $LOGS/roscore.txt &
 echo $! > $LOGS/roscore.pid
 
 echo "Givng roscore some time to start"
-sleep 5
+sleep 3
 
 # Connect to tracks
 rosrun rosserial_python serial_node.py _baud:=115200 _port:="${track_serial_usb}"  2>&1 | tee $LOGS/tracks.txt &
