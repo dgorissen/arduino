@@ -77,6 +77,9 @@ execshell:
 push:
 	docker push dgorissen/clare
 
+pull:
+	docker pull dgorissen/clare
+
 clean:
 	docker builder prune -a -f
 	docker system prune -f
