@@ -19,7 +19,7 @@ git config --global user.email "dgorissen@gmail.com"
 git config --global user.name "Dirk Gorissen"
 
 # get std packages
-sudo apt install -y vim keychain imagemagick feh screen software-properties-common
+sudo apt install -y vim keychain imagemagick feh screen software-properties-common dos2unix
 
 # install docker
 curl -fsSL https://get.docker.com -o get-docker.sh
@@ -82,13 +82,25 @@ sudo systemctl start piwatcher
 sudo apt-get install xinput-calibrator 
 
 # Add to /config/boot.txt
-hdmi_group=2
-hdmi_mode=87
-hdmi_timings=480 0 40 10 80 800 0 13 3 32 0 0 0 60 0 32000000 3
+hdmi_drive:0=1
+hdmi_force_hotplug:0=1
+hdmi_group:0=2
+hdmi_mode:0=1
+hdmi_mode:0=87
+hdmi_timings:0=480 0 40 10 80 800 0 13 3 32 0 0 0 60 0 32000000 3
+display_hdmi_rotate:0=3
+
+hdmi_drive:1=1
+hdmi_force_hotplug:1=1
+hdmi_group:1=2
+hdmi_mode:1=1
+hdmi_mode:1=87
+hdmi_timings:1=480 0 40 10 80 800 0 13 3 32 0 0 0 60 0 32000000 3
+display_hdmi_rotate:1=3
+
+# TODO: even with the above only output 0 (closest to usbC port) works for some reason
+
 dtoverlay=ads7846,cs=1,penirq=25,penirq_pull=2,speed=50000,keep_vref_on=0,swapxy=0,pmax=255,xohms=150,xmin=200,xmax=3900,ymin=200,ymax=3900
-display_rotate=3
-hdmi_drive=1
-hdmi_force_hotplug=1
 
 #Note: For Raspberry Pi 4, you need to comment out dtoverlay=vc4-fkms-V3D.
 #dtoverlay=vc4-fkms-V3D.
@@ -113,5 +125,16 @@ sudo cp config/99-realsense-libusb.rules /etc/udev/rules.d/
 sudo su
 udevadm control --reload-rules && udevadm trigger
 exit
+
+
+# adafruit sound bonnet: TODO
+# list devices:
+aplay -l
+# Record from respeaker
+arecord -D plughw:3,0 -f cd a.wav
+# Play through bonnet
+aplay --device plughw:2,0 a.wav
+
+
 
 
