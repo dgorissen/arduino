@@ -5,6 +5,10 @@
 		},
 		{
 			"path": "tracks"
+		},
+		{
+			"name": "ultrasound",
+			"path": "ultrasound"
 		}
 	],
 	"settings": {
