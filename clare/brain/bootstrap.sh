@@ -135,6 +135,6 @@ arecord -D plughw:3,0 -f cd a.wav
 # Play through bonnet
 aplay --device plughw:2,0 a.wav
 
-
+apt get install x11-apps
 
 
