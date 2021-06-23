@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
       python3-wstool build-essential
 
 # Utils
-RUN apt-get install -y wget vim keychain tree screen git software-properties-common feh i2c-tools
+RUN apt-get install -y wget vim keychain tree screen git software-properties-common feh
 
 # x2go
 RUN add-apt-repository ppa:x2go/stable && \
@@ -39,9 +39,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash - && \
   npm install -g @vue/cli
 
 # other dependencies
-RUN apt-get install -y ros-noetic-rosserial-python \
+RUN apt-get update && apt-get install -y ros-noetic-rosserial-python \
   usbutils pulseaudio-utils lame mpg123 audacity libfftw3-dev libconfig-dev libasound2-dev portaudio19-dev \
-  libprotobuf-dev protobuf-compiler libtbb-dev ros-noetic-realsense2-camera libusb-1.0-0-dev
+  libprotobuf-dev protobuf-compiler libtbb-dev ros-noetic-realsense2-camera libusb-1.0-0-dev \
+  alsa-utils i2c-tools \
+  ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization pcl-tools
 
 # create user
 RUN groupadd -r -g 1001 dgorissen && useradd -ms /bin/bash -u 1001 -g 1001 dgorissen && \
@@ -62,7 +64,7 @@ RUN rosdep update
 RUN curl https://pyenv.run | bash && \
   ~/.pyenv/bin/pyenv install -v 3.7.10 
 
-RUN echo '\n### \n\
+RUN echo -e '\n### \n\
 export PATH="/home/dgorissen/.pyenv/bin:$PATH" \n\
 eval "$(pyenv init -)" \n\
 eval "$(pyenv virtualenv-init -)" \n\
@@ -106,9 +108,6 @@ RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
   cd odas/build && \
   cmake .. && \
   make -j 2
-
-# Serial HAT repo (https://github.com/sbcshop/SB-Serial-Expansion-Hat)
-RUN git clone https://github.com/sbcshop/SB-Serial-Expansion-Hat.git
 
 # Setup realsense (https://github.com/acrobotic/Ai_Demos_RPi/wiki/Raspberry-Pi-4-and-Intel-RealSense-D435)
 RUN wget https://github.com/AprilRobotics/apriltag/archive/refs/tags/3.1.1.tar.gz && \
