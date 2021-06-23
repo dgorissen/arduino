@@ -375,6 +375,8 @@ void loop() {
 		Log.verbose("State not changed/published: %s\n", s.c_str());
 	}
 
+	// Add a short delay
+	delay(3);
 	// Keep rosserial synced and process incomming msgs
 	nh.spinOnce();
 }
