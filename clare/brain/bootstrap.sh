@@ -32,6 +32,8 @@ sudo usermod -a -G dialout dgorissen
 sudo usermod -a -G audio dgorissen
 # allow video
 sudo usermod -a -G video dgorissen
+# allow i2c
+sudo usermod -a -G i2c dgorissen
 
 # add this to bashrc
 eval $(keychain --noask --eval id_rsa)
@@ -137,4 +139,7 @@ aplay --device plughw:2,0 a.wav
 
 apt get install x11-apps
 
+
+# Test neural compute stick
+ ./openvino/build_samples/armv7l/Release/object_detection_sample_ssd -m /home/dgorissen/open_model_zoo/tools/downloader/intel/face-detection-adas-0001/FP16/face-detection-adas-0001.xml -d MYRIAD -i clare/school.jpg
 
