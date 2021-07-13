@@ -56,6 +56,7 @@ runpi:
 	--device /dev/gpiomem \
 	--privileged \
 	--network=host \
+	-e DISPLAY=${DISPLAY} \
 	-v /dev:/dev \
 	--name cbrain \
 	dgorissen/clare
@@ -72,7 +73,7 @@ runshell:
 	dgorissen/clare
 
 execshell:
-	docker exec -it cbrain bash
+	docker exec -e DISPLAY=${DISPLAY} -it cbrain bash
 
 push:
 	docker push dgorissen/clare
