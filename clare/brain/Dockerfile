@@ -31,7 +31,7 @@ RUN apt-get install -y build-essential \
 # upgrade cmake to avoid crosscompile bug
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \
   apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main' && \
-  apt-get install -y cmake
+  apt-get install -y cmake cmake-curses-gui
 
 # nodejs & vue
 RUN curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash - && \
@@ -51,6 +51,7 @@ RUN groupadd -r -g 1001 dgorissen && useradd -ms /bin/bash -u 1001 -g 1001 dgori
   usermod -a -G dialout dgorissen && \
   usermod -a -G audio dgorissen && \
   usermod -a -G video dgorissen && \
+  usermod -a -G i2c dgorissen && \
   usermod -a -G sudo dgorissen
 RUN echo 'dgorissen:test' | chpasswd
 
@@ -60,26 +61,42 @@ WORKDIR /home/dgorissen
 # Update rosdep
 RUN rosdep update
 
-# Install python / pyenv
-RUN curl https://pyenv.run | bash && \
-  ~/.pyenv/bin/pyenv install -v 3.7.10 
+# Set-up necessary Env vars for PyEnv
+ENV PYTHON_VERSION 3.7.10
+ENV PYENV_ROOT /home/dgorissen/.pyenv
+ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
+
+# Install pyenv
+RUN set -ex \
+    && curl https://pyenv.run | bash \
+    && pyenv update \
+    && pyenv install $PYTHON_VERSION \
+    && pyenv global $PYTHON_VERSION \
+    && pyenv rehash
+
+RUN set -ex \
+  && pyenv version \
+  && python --version \
+  && which python \
+  && which pip
 
 RUN echo -e '\n### \n\
-export PATH="/home/dgorissen/.pyenv/bin:$PATH" \n\
-eval "$(pyenv init -)" \n\
-eval "$(pyenv virtualenv-init -)" \n\
+xhost +\n\
+export PYENV_ROOT="$HOME/.pyenv" \n\
+export PATH="$PYENV_ROOT/bin:$PATH" \n\
+eval "$(pyenv init --path)" \n\
 ' >> ~/.bashrc
 
-RUN ~/.pyenv/bin/pyenv global 3.7.10
-RUN READTHEDOCS=True /home/dgorissen/.pyenv/shims/pip install \
+RUN pip install wheel
+RUN READTHEDOCS=True pip install \
   picamera imutils numpy flask flask_cors pyyaml rospkg pyserial platformio netifaces
 
 # Install openvino
 ARG vinodist=ubuntu20
 # ARG vinodist=raspbian
-ARG vinofile=l_openvino_toolkit_runtime_${vinodist}_p_2021.3.394
+ARG vinofile=l_openvino_toolkit_runtime_${vinodist}_p_2021.4.582
 
-RUN wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.3/${vinofile}.tgz && \
+RUN wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.4/${vinofile}.tgz && \
   tar -xf ${vinofile}.tgz && \
   mv ${vinofile} openvino
 
@@ -92,17 +109,16 @@ RUN cd openvino && \
 # Install model zoo downloader
 RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   cd open_model_zoo/tools/downloader && \
-  /home/dgorissen/.pyenv/shims/pip install -r requirements.in && \
+  pip install -r requirements.in && \
   python3 downloader.py --name face-detection-adas-0001
 
 # Respeaker & ODAS
-RUN /home/dgorissen/.pyenv/shims/pip install \
-  pyusb click pyaudio rpi.gpio
+RUN pip install pyusb click pyaudio rpi.gpio
 
 RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
   git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
   cd pixel_ring && \
-  /home/dgorissen/.pyenv/shims/pip install -e . && \
+  pip install -e . && \
   git clone https://github.com/introlab/odas.git && \
   mkdir odas/build && \
   cd odas/build && \
@@ -110,25 +126,37 @@ RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
   make -j 2
 
 # Setup realsense (https://github.com/acrobotic/Ai_Demos_RPi/wiki/Raspberry-Pi-4-and-Intel-RealSense-D435)
-RUN wget https://github.com/AprilRobotics/apriltag/archive/refs/tags/3.1.1.tar.gz && \
-  tar -xzf 3.1.1.tar.gz && \
-  mkdir apriltag-build && \
-  cd apriltag-build && \
-  cmake -DCMAKE_INSTALL_PREFIX=~/apriltag/ ../apriltag-3.1.1 && \
+ENV APRIL_VERSION=3.1.4
+RUN wget https://github.com/AprilRobotics/apriltag/archive/refs/tags/v$APRIL_VERSION.tar.gz && \
+  tar -xzf v$APRIL_VERSION.tar.gz && \
+  mkdir apriltag-$APRIL_VERSION/build && \
+  cd apriltag-$APRIL_VERSION/build && \
+  # https://github.com/AprilRobotics/apriltag/issues/107
+  cmake -DCMAKE_INSTALL_PREFIX=~/apriltag/ -DBUILD_PYTHON_WRAPPER=OFF .. && \
   make install
 
-RUN git clone https://github.com/IntelRealSense/librealsense.git && \
+RUN git clone --depth 1 --branch v2.48.0 https://github.com/IntelRealSense/librealsense.git && \
   cd librealsense && \
   mkdir build  && cd build && \
-  cmake .. -DBUILD_EXAMPLES=true -DCMAKE_BUILD_TYPE=Release -DFORCE_LIBUVC=true -DCMAKE_PREFIX_PATH=~/apriltag && \
-  make -j2 
+  cmake .. \
+  -DBUILD_UNIT_TESTS=OFF \
+  -DBUILD_EXAMPLES=true \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DFORCE_LIBUVC=true \
+  -DBUILD_OPENVINO_EXAMPLES=ON \
+  -DINTEL_OPENVINO_DIR=/home/dgorissen/openvino \
+  -DOpenCV_DIR=/home/dgorissen/openvino/opencv \
+  -DCMAKE_PREFIX_PATH=~/apriltag && \
+  make -j1
 
 RUN cd librealsense/build && \
-  cmake .. -DBUILD_PYTHON_BINDINGS=bool:true -DPYTHON_EXECUTABLE=/home/dgorissen/.pyenv/shims/python3 && \
+  cmake .. \
+  -DBUILD_PYTHON_BINDINGS=ON \
+  # -DPYTHON_INSTALL_DIR= \
+  -DPYTHON_EXECUTABLE=$(which python3) && \
   make -j2
 
-RUN /home/dgorissen/.pyenv/shims/pip install \
-  opengl pyopengl pyopengl_accelerate==3.1.3rc1
+RUN pip install opengl pyopengl pyopengl_accelerate
 
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
@@ -143,4 +171,3 @@ EXPOSE 8080
 EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
-
