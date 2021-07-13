@@ -4,6 +4,7 @@
 CLARE=/home/dgorissen/clare/brain
 LOGS=$CLARE/logs
 track_serial_usb=/dev/ttyUSB0
+# track_serial_usb=/dev/ttyS0
 
 mkdir -p $LOGS
 rm $LOGS/*
