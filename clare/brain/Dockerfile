@@ -142,19 +142,23 @@ RUN git clone --depth 1 --branch v2.48.0 https://github.com/IntelRealSense/libre
   -DBUILD_UNIT_TESTS=OFF \
   -DBUILD_EXAMPLES=true \
   -DCMAKE_BUILD_TYPE=Release \
-  -DFORCE_LIBUVC=true \
-  -DBUILD_OPENVINO_EXAMPLES=ON \
-  -DINTEL_OPENVINO_DIR=/home/dgorissen/openvino \
-  -DOpenCV_DIR=/home/dgorissen/openvino/opencv \
+  -DFORCE_RSUSB_BACKEND=true \
+  # -DBUILD_OPENVINO_EXAMPLES=ON \
+  # -DINTEL_OPENVINO_DIR=/home/dgorissen/openvino \
+  # -DOpenCV_DIR=/home/dgorissen/openvino/opencv \
+  # -DCMAKE_CXX_FLAGS=-isystem\ /home/dgorissen/openvino/inference_engine \
   -DCMAKE_PREFIX_PATH=~/apriltag && \
-  make -j1
+  make -j2
 
 RUN cd librealsense/build && \
   cmake .. \
   -DBUILD_PYTHON_BINDINGS=ON \
-  # -DPYTHON_INSTALL_DIR= \
   -DPYTHON_EXECUTABLE=$(which python3) && \
   make -j2
+
+USER root
+RUN cd /home/dgorissen/librealsense/build && make install
+USER dgorissen
 
 RUN pip install opengl pyopengl pyopengl_accelerate
 
@@ -171,3 +175,5 @@ EXPOSE 8080
 EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
+
+# libssl-dev mesa-utils
