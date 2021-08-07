@@ -3,8 +3,6 @@ mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
 rootdir := $(shell dirname $(mkfile_dir))
 
-track_teensy_usb=/dev/ttyACM0
-track_serial_usb=/dev/ttyUSB0
 build_arch ?= $(shell arch)
 real_arch = $(shell arch)
 
@@ -51,8 +49,6 @@ runpi:
 	-v ${rootdir}:/home/dgorissen/clare \
 	-h cbrain \
 	-p5000:5000 -p11311:11311 -p8080:8080 \
-	--device=${track_teensy_usb} \
-	--device=${track_serial_usb} \
 	--device /dev/gpiomem \
 	--privileged \
 	--network=host \
