@@ -176,4 +176,4 @@ EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
 
-# libssl-dev mesa-utils
+# libssl-dev mesa-utils nmap
