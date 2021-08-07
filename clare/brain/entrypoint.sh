@@ -1,6 +1,8 @@
 #!/bin/bash
 # service ssh start
 
+LOCAL_IP=`hostname  -I | cut -f1 -d' '`
+
 CLARE=/home/dgorissen/clare/brain
 LOGS=$CLARE/logs
 track_serial_usb=/dev/ttyUSB0
@@ -9,9 +11,15 @@ track_serial_usb=/dev/ttyUSB0
 mkdir -p $LOGS
 rm $LOGS/*
 
+echo
+echo "* Local IP detected as ${LOCAL_IP}"
+echo "* Logs directory set to ${LOGS}"
+echo
+
 # Start ROS master
-export ROS_HOSTNAME=localhost
-export ROS_MASTER_URI=http://localhost:11311
+
+# export ROS_HOSTNAME=localhost
+export ROS_MASTER_URI=http://${LOCAL_IP}:11311
 roscore -v --master-logger-level=info 2>&1 | tee $LOGS/roscore.txt &
 echo $! > $LOGS/roscore.pid
 
