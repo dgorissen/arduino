@@ -22,8 +22,9 @@ def run_node(port, baud):
                 items = line.split()
                 d = dict(zip(items[0::2], [float(x) for x in items[1::2]]))
             except ValueError as e:
-                print(e)
-                d = {"error": str(e), "line": line}
+                msg = f"Error parsing line '{line}'"
+                rospy.logwarn(msg)
+                d = {"error": msg}
     
             # Easier than custom messages
             js = json.dumps(d)
