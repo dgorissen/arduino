@@ -62,7 +62,7 @@ runpi:
 	dgorissen/clare
 
 	# Unfortunately privileged, /dev, and host network is all needed
-	# to thet the neural compute stick to work inside docker
+	# so that the neural compute stick to work inside docker
 
 runshell:
 	docker run -v ${rootdir}:/home/dgorissen/clare -h cbrain \
