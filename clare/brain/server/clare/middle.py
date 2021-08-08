@@ -1,9 +1,8 @@
 import json
 
 class ClareMiddle:
-    def __init__(self, pub):
+    def __init__(self):
         self._state = {}
-        self._pub = pub
 
     def parse_state(self, s):
         self._state = json.loads(s)

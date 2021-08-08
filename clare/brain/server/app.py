@@ -18,7 +18,7 @@ class ClareState:
 def is_connected(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not connected():
+        if connected():
             return f(*args, **kwargs)
         else:
             return "Not connected", 403
