@@ -60,7 +60,7 @@ export default {
   methods: {
     connect: function () {
       axios
-        .get(api + "/tracks/connect")
+        .get(api + "/connect")
         .then((res) => {
           this.connected = true;
           console.log("Connected: " + res.data);
