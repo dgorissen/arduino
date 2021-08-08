@@ -1,6 +1,16 @@
 <template>
   <b-container>
     <b-row>
+      <b-button
+        :disabled="connected"
+        v-on:click="connect()"
+        variant="primary"
+        >Connect</b-button
+      >
+    </b-row>
+    <p />
+
+    <b-row>
       <b-col l="4">
         <b-card
           title="Tracks"
@@ -11,13 +21,7 @@
           style="max-width: 20rem"
           class="mb-2"
         >
-          <b-card-text>Track controller</b-card-text>
-          <b-button
-            :disabled="connected"
-            v-on:click="connect()"
-            variant="primary"
-            >Connect</b-button
-          >
+          <b-card-text>Track actions</b-card-text>
           <p />
           <b-button
             :disabled="!connected"
@@ -26,9 +30,28 @@
             >Turn headlights {{ headlightActionStr() }}</b-button
           >
           <p />
-          Current state: {{ state }}
+          Current state:
+          <b-table stacked :items="[track_state]"></b-table>
         </b-card>
       </b-col>
+
+      <b-col l="4">
+        <b-card
+          title="Middle"
+          img-src="../assets/img/middle.png"
+          img-alt="Image"
+          img-top
+          tag="article"
+          style="max-width: 20rem"
+          class="mb-2"
+        >
+          <b-card-text>Middle actions</b-card-text>
+          <p />
+          Current state:
+          <b-table stacked :items="[middle_state]"></b-table>
+        </b-card>
+      </b-col>
+
     </b-row>
   </b-container>
 </template>
@@ -42,7 +65,8 @@ export default {
     return {
       headlights: false,
       connected: false,
-      state: "",
+      track_state: "",
+      middle_state: "",
     };
   },
   watch: {
@@ -99,11 +123,21 @@ export default {
           axios
           .get(api + "/tracks/state")
           .then((response) => {
-            this.state = response.data;
+            this.track_state = response.data;
           })
           .catch((err) => {
             console.log(err);
-            this.state = 'Failed to get state';
+            this.track_state = 'Failed to get state';
+          });
+
+          axios
+          .get(api + "/middle/state")
+          .then((response) => {
+            this.middle_state = response.data;
+          })
+          .catch((err) => {
+            console.log(err);
+            this.middle_state = 'Failed to get state';
           });
         }
     }, 2000);
