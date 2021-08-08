@@ -68,7 +68,9 @@ def index():
 
 @app.route("/connect")
 def connect():
-    init_state()
+    if not connected():
+        init_state()
+
     return ('Connected',200)
 
 @app.route("/tracks/headlights")
