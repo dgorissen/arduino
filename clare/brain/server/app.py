@@ -1,5 +1,5 @@
 from clare.middle import ClareMiddle
-from flask import Flask, Response, render_template, session, request, jsonify
+from flask import Flask, Response, render_template, session, request, jsonify, send_file
 from random import randint
 import subprocess
 import json
@@ -9,6 +9,7 @@ from clare.tracks import Tracks
 import rospy
 from std_msgs.msg import String
 from functools import wraps
+import datetime
 
 class ClareState:
     def __init__(self):
@@ -110,13 +111,27 @@ def audio_devices():
 def usb_devices():
     return shell_cmd(["lsusb"])
 
+@app.route("/make_photo")
+def make_photo():
+    basename = "raspistill"
+    suffix = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
+    fn = f"{basename}_{suffix}.jpg"
+
+    log = shell_cmd(f"/opt/vc/bin/raspistill -q 50 -o /tmp/{fn}")
+
+    return jsonify({"name": fn, "output": log})
+
+@app.route("/photo/<fn>")
+def get_photo(fn):
+    return send_file(f"/tmp/{fn}", mimetype='image/jpeg')
+
 @app.route("/tracks/stream")
 def stream():
     return Response(event_stream(), mimetype="text/event-stream")
 
 def shell_cmd(cmd):
-    result = subprocess.run(cmd, stdout=subprocess.PIPE)
-    return result.stdout
+    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
+    return result.stdout.decode("utf-8")
 
 if __name__ == "__main__":
     # Important not threaded given our global state

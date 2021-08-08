@@ -52,6 +52,31 @@
         </b-card>
       </b-col>
 
+      <b-col l="4">
+        <b-card
+            title="Photo"
+            img-src="../assets/img/selfie.png"
+            img-alt="Image"
+            img-top
+            tag="article"
+            style="max-width: 20rem"
+            class="mb-2"
+          >
+          <b-card-text>Photo actions</b-card-text>
+          <p />
+          <b-button
+            :disabled="!photo_ready"
+            v-on:click="takePhoto()"
+            variant="primary"
+            >Take Photo</b-button
+          >
+          <p />
+          Last Photo:
+          <p />
+          <b-img v-bind:src="photo_src" rounded fluid alt=""></b-img>
+        </b-card>
+      </b-col>
+
     </b-row>
   </b-container>
 </template>
@@ -67,6 +92,8 @@ export default {
       connected: false,
       track_state: "",
       middle_state: "",
+      photo_ready: true,
+      photo_src: "",
     };
   },
   watch: {
@@ -96,6 +123,19 @@ export default {
     headlightActionStr: function () {
       return this.headlights ? "off" : "on";
     },
+    takePhoto: function () {
+      this.photo_ready = false;
+      axios
+        .get(api + "/make_photo")
+        .then((res) => {
+          this.photo_ready = true;
+          this.photo_src = api + "/photo/" + res.data.name;
+        })
+        .catch((err) => {
+          console.log(err);
+        });
+    },
+
   },
   mounted() {
     axios

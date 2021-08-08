@@ -54,11 +54,16 @@ runpi:
 	--network=host \
 	-e DISPLAY=${DISPLAY} \
 	-v /dev:/dev \
+	-v /opt/vc:/opt/vc \
+	--env LD_LIBRARY_PATH=/opt/vc/lib \
 	--name cbrain \
 	dgorissen/clare
 
 	# Unfortunately privileged, /dev, and host network is all needed
 	# so that the neural compute stick to work inside docker
+
+	# /opt/vc stuff is needed for the pi camera
+	# https://www.losant.com/blog/how-to-access-the-raspberry-pi-camera-in-docker
 
 runshell:
 	docker run -v ${rootdir}:/home/dgorissen/clare -h cbrain \
