@@ -75,6 +75,15 @@ export default {
   },
   mounted() {
     axios
+      .get(api + "/")
+      .then((response) => {
+        this.connected = response.data.connected;
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+
+    axios
       .get(api + "/tracks/headlights")
       .then((response) => {
         this.headlights = response.data.value == "True" ? true : false;
