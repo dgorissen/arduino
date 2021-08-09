@@ -31,7 +31,7 @@ roscore -v --master-logger-level=info 2>&1 | tee $LOGS/roscore.txt &
 echo $! > $LOGS/roscore.pid
 
 echo "* Giving roscore some time to start"
-sleep 3
+sleep 5
 
 # ID of the current run, generated when roscore is started
 RUN_ID=`rosparam get /run_id`
