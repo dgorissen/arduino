@@ -158,5 +158,4 @@ def make_stream(msg_name, state_getter):
 
 
 if __name__ == "__main__":
-    # Important not threaded given our global state
     app.run(host='0.0.0.0', threaded=True)
