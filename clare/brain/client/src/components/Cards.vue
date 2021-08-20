@@ -30,8 +30,8 @@
             >Turn headlights {{ headlightActionStr() }}</b-button
           >
           <p />
-          Current state:
-          <b-table stacked :items="[track_state]"></b-table>
+          Current state: {{ track_state }}
+          <!-- b-table stacked :items="[track_state]"></b-table-->
         </b-card>
       </b-col>
 
@@ -47,8 +47,8 @@
         >
           <b-card-text>Middle actions</b-card-text>
           <p />
-          Current state:
-          <b-table stacked :items="[middle_state]"></b-table>
+          Current state: {{ middle_state }}
+          <!-- b-table stacked :items="[middle_state]"></b-table-->
         </b-card>
       </b-col>
 
@@ -85,13 +85,39 @@
 import axios from "axios";
 var api = process.env.VUE_APP_API_LOCATION;
 
+// EventSources
+var tracksStateStream = null;
+var middleStateStream = null;
+
+function setupEventSource(src, name, handler) {
+  src.addEventListener('open', (e) => {
+    console.log("EventSource " + name + " opened");
+    console.log(e);
+  }, false);
+
+  src.addEventListener('error', (e) => {
+    console.log("Error in EventSource " + name);
+    console.log(e);
+    if (e.readyState == EventSource.CLOSED) {
+      console.log("EventSource " + name + " closed");
+    }
+  }, false);
+
+  src.addEventListener(name, (event) => handler(JSON.parse(event.data)));
+}
+
+function closeEventSources() {
+  if (tracksStateStream != null) tracksStateStream.close();
+  if (middleStateStream != null) middleStateStream.close();
+}
+
 export default {
   data() {
     return {
       headlights: false,
-      connected: false,
-      track_state: "",
-      middle_state: "",
+      connected: null,
+      track_state: {},
+      middle_state: {},
       photo_ready: true,
       photo_src: "",
     };
@@ -106,6 +132,13 @@ export default {
         .catch((err) => {
           console.log(err);
         });
+    },
+    connected: function (val) {
+      if(val) {
+        this.connectToStreams();
+      } else {
+        this.closeStreams();
+      }
     },
   },
   methods: {
@@ -135,7 +168,16 @@ export default {
           console.log(err);
         });
     },
+    connectToStreams: function(){
+      tracksStateStream = new EventSource(api + "/tracks/stream");
+      setupEventSource(tracksStateStream, "tracks", (data) => this.track_state = data);
 
+      middleStateStream = new EventSource(api + "/middle/stream");
+      setupEventSource(middleStateStream, "middle", (data) => this.middle_state = data);
+    },
+    closeStreams: function() {
+      closeEventSources();
+    },
   },
   mounted() {
     axios
@@ -155,32 +197,6 @@ export default {
       .catch((err) => {
         console.log(err);
       });
-
-    // Temporarily get state
-    // TODO: replace by event source
-    setInterval(() => {
-        if(this.connected) {
-          axios
-          .get(api + "/tracks/state")
-          .then((response) => {
-            this.track_state = response.data;
-          })
-          .catch((err) => {
-            console.log(err);
-            this.track_state = 'Failed to get state';
-          });
-
-          axios
-          .get(api + "/middle/state")
-          .then((response) => {
-            this.middle_state = response.data;
-          })
-          .catch((err) => {
-            console.log(err);
-            this.middle_state = 'Failed to get state';
-          });
-        }
-    }, 2000);
   },
 };
 </script>
