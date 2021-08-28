@@ -33,6 +33,7 @@
 			"streambuf": "cpp",
 			"__tree": "cpp",
 			"set": "cpp"
-		}
+		},
+		"python.defaultInterpreterPath": "python3"
 	}
 }

@@ -10,6 +10,7 @@ import rospy
 from std_msgs.msg import String
 from functools import wraps
 import datetime
+from clare.utils import shell_cmd
 
 class ClareState:
     def __init__(self):
@@ -51,9 +52,11 @@ def init_state():
     m = ClareMiddle()
     rospy.Subscriber("clare_middle", String, m.status_callback)
 
-    STATE = ClareState()
-    STATE.tracks = t
-    STATE.middle = m
+    cs = ClareState()
+    cs.tracks = t
+    cs.middle = m
+
+    STATE = cs
 
     rospy.loginfo("State initialised")
 
@@ -77,8 +80,9 @@ def connect():
 @app.route("/tracks/headlights")
 @is_connected
 def headlights():
+    val = STATE.tracks.get_headlights() if STATE.tracks else None
     return jsonify({
-        "value": STATE.tracks.get_headlights()
+        "value": val
     })
 
 @app.route("/tracks/headlights/<status>")
@@ -125,14 +129,34 @@ def make_photo():
 def get_photo(fn):
     return send_file(f"/tmp/{fn}", mimetype='image/jpeg')
 
-@app.route("/tracks/stream")
-def stream():
-    return Response(event_stream(), mimetype="text/event-stream")
+@app.route("/<source>/stream")
+@is_connected
+def get_stream(source):
+    if source == "tracks":
+        stream = make_stream("tracks", STATE.tracks.get_state)
+    elif source == "middle":
+        stream = make_stream("middle", STATE.middle.get_state)
+    else:
+        return f"Invalid stream source {source}", 500
 
-def shell_cmd(cmd):
-    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
-    return result.stdout.decode("utf-8")
+    return Response(stream(), mimetype="text/event-stream")
+
+def make_stream(msg_name, state_getter):
+    def _stream():
+        last_ts = 0
+        while True:
+            # Get the current state
+            tstate = state_getter()
+            ts = tstate.get("ts", -1)
+
+            if tstate["ts"] != last_ts:
+                last_ts = ts
+                yield "event: " + msg_name + "\n" + "data: " + json.dumps(tstate) + "\n\n"
+            else:
+                time.sleep(0.5)
+
+    return _stream
+
 
 if __name__ == "__main__":
-    # Important not threaded given our global state
     app.run(host='0.0.0.0', threaded=True)
