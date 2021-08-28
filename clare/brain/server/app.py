@@ -52,9 +52,11 @@ def init_state():
     m = ClareMiddle()
     rospy.Subscriber("clare_middle", String, m.status_callback)
 
-    STATE = ClareState()
-    STATE.tracks = t
-    STATE.middle = m
+    cs = ClareState()
+    cs.tracks = t
+    cs.middle = m
+
+    STATE = cs
 
     rospy.loginfo("State initialised")
 
@@ -137,7 +139,7 @@ def get_stream(source):
     else:
         return f"Invalid stream source {source}", 500
 
-    return Response(stream, mimetype="text/event-stream")
+    return Response(stream(), mimetype="text/event-stream")
 
 def make_stream(msg_name, state_getter):
     def _stream():
@@ -149,8 +151,7 @@ def make_stream(msg_name, state_getter):
 
             if tstate["ts"] != last_ts:
                 last_ts = ts
-                res = {"event": msg_name, "data": tstate}
-                yield "data: " + json.dumps(tstate) + "\n\n"
+                yield "event: " + msg_name + "\n" + "data: " + json.dumps(tstate) + "\n\n"
             else:
                 time.sleep(0.5)
 

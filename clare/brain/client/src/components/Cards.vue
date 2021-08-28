@@ -30,8 +30,8 @@
             >Turn headlights {{ headlightActionStr() }}</b-button
           >
           <p />
-          Current state: {{ track_state }}
-          <!-- b-table stacked :items="[track_state]"></b-table-->
+          <!-- Current state: {{ track_state }} -->
+          <b-table stacked :items="[track_state]"></b-table>
         </b-card>
       </b-col>
 
@@ -47,8 +47,8 @@
         >
           <b-card-text>Middle actions</b-card-text>
           <p />
-          Current state: {{ middle_state }}
-          <!-- b-table stacked :items="[middle_state]"></b-table-->
+          <!-- Current state: {{ middle_state }} -->
+          <b-table stacked :items="[middle_state]"></b-table>
         </b-card>
       </b-col>
 
@@ -103,7 +103,13 @@ function setupEventSource(src, name, handler) {
     }
   }, false);
 
-  src.addEventListener(name, (event) => handler(JSON.parse(event.data)));
+  src.addEventListener(name, (event) => {
+    handler(JSON.parse(event.data));
+  });
+
+  src.addEventListener("message", (event) => {
+    console.log("Got generic message: " + event);
+  });
 }
 
 function closeEventSources() {
