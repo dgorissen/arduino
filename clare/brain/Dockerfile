@@ -164,7 +164,7 @@ USER root
 RUN cd /home/dgorissen/librealsense/build && make install
 USER dgorissen
 
-RUN pip install opengl pyopengl pyopengl_accelerate
+RUN pip install pyopengl pyopengl_accelerate
 
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
