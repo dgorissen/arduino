@@ -28,10 +28,12 @@ RUN apt-get install -y build-essential \
    libx264-dev libgtk-3-dev libcanberra-gtk* \
    libatlas-base-dev gfortran python3-dev 
 
-# upgrade cmake to avoid crosscompile bug
+# upgrade cmake to avoid crosscompile bug in the ubuntu bundled cmake (3.16)
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \
   apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main' && \
-  apt-get install -y cmake cmake-curses-gui
+  apt-cache policy cmake-data && \
+  apt-cache policy cmake-curses-gui && \
+  apt-get install -y cmake=3.20.2-0kitware1ubuntu20.04.1 cmake-data=3.20.2-0kitware1ubuntu20.04.1 cmake-curses-gui=3.20.2-0kitware1ubuntu20.04.1
 
 # nodejs & vue
 RUN curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash - && \
@@ -43,7 +45,8 @@ RUN apt-get update && apt-get install -y ros-noetic-rosserial-python \
   usbutils pulseaudio-utils lame mpg123 audacity libfftw3-dev libconfig-dev libasound2-dev portaudio19-dev \
   libprotobuf-dev protobuf-compiler libtbb-dev ros-noetic-realsense2-camera libusb-1.0-0-dev \
   alsa-utils i2c-tools \
-  ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization pcl-tools
+  ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization pcl-tools \
+  libssl-dev mesa-utils nmap
 
 # create user
 RUN groupadd -r -g 1001 dgorissen && useradd -ms /bin/bash -u 1001 -g 1001 dgorissen && \
@@ -70,7 +73,8 @@ ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 RUN set -ex \
     && curl https://pyenv.run | bash \
     && pyenv update \
-    && pyenv install $PYTHON_VERSION \
+    # openvino needs a shared library, else we only get a static library
+    && PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install $PYTHON_VERSION \
     && pyenv global $PYTHON_VERSION \
     && pyenv rehash
 
@@ -135,7 +139,7 @@ RUN wget https://github.com/AprilRobotics/apriltag/archive/refs/tags/v$APRIL_VER
   cmake -DCMAKE_INSTALL_PREFIX=~/apriltag/ -DBUILD_PYTHON_WRAPPER=OFF .. && \
   make install
 
-RUN git clone --depth 1 --branch v2.48.0 https://github.com/IntelRealSense/librealsense.git && \
+RUN git clone --depth 1 --branch v2.49.0 https://github.com/IntelRealSense/librealsense.git && \
   cd librealsense && \
   mkdir build  && cd build && \
   cmake .. \
@@ -148,7 +152,7 @@ RUN git clone --depth 1 --branch v2.48.0 https://github.com/IntelRealSense/libre
   # -DOpenCV_DIR=/home/dgorissen/openvino/opencv \
   # -DCMAKE_CXX_FLAGS=-isystem\ /home/dgorissen/openvino/inference_engine \
   -DCMAKE_PREFIX_PATH=~/apriltag && \
-  make -j2
+  make -j1
 
 RUN cd librealsense/build && \
   cmake .. \
@@ -175,5 +179,3 @@ EXPOSE 8080
 EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
-
-# libssl-dev mesa-utils nmap
