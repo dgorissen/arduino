@@ -9,6 +9,9 @@
 		{
 			"name": "ultrasound",
 			"path": "ultrasound"
+		},
+		{
+			"path": "head"
 		}
 	],
 	"settings": {
