@@ -1,57 +1,26 @@
-# -*- coding: utf-8 -*-
-######################  Library Initialization  #########################
-#  Import Library being used in program
-import platform
 import argparse
 import time
+import picamera
+import io
+from picamera.array import PiRGBArray
+import numpy
+from openvino.inference_engine import IECore
+import cv2 as cv
 
-try:
-    from openvino.inference_engine import IECore
-    import cv2 as cv
-except:
-    raise Exception("OpenVINO not found in your environment.")
-
-#####################  Argument Parser  ################################
-parser = argparse.ArgumentParser(description="OpenVINO Face Detection")
-parser.add_argument("-d", "--device", metavar='', default='CPU',
-                    help="Device to run inference: GPU, CPU or MYRIAD", type=str)
-parser.add_argument("-c", "--camera", metavar='', default=0,
-                    help="Camera Device, default 0 for Webcam", type=int)
-parser.add_argument("-s", "--sample", default=False,
-                    action='store_true', help="Inference using sample video")
-
-args = parser.parse_args()
-
-#######################  DEVICE INITIALIZATION  ########################
-#  Device Used for inference
-device = args.device.upper()
-
-# Device Options = "CPU", "GPU", "MYRIAD"
-plugin = IECore()
-
-#######################  MODEL INITIALIZATION  ########################
-#  Prepare and load the models
-
-# Model : Face Detection
-FACEDETECT_XML = "models/face-detection-adas-0001.xml"
-FACEDETECT_BIN = "models/face-detection-adas-0001.bin"
-
-#######################  IMAGE PREPROCESSING  ########################
 # Input Image Preprocessing
-def image_preprocessing(image, n, c, h, w):
+def image_preprocessing(image, dims_nchw):
     """
     Image Preprocessing steps, to match image 
     with Input Neural nets
 
     Image,
-    N, Channel, Height, Width
+    (N, Channel, Height, Width)
     """
+    n, c, h, w = dims_nchw
     blob = cv.resize(image, (w, h))  # Resize width & height
     blob = blob.transpose((2, 0, 1))  # Change data layout from HWC to CHW
     blob = blob.reshape((n, c, h, w))
     return blob
-
-#########################  LOAD NEURAL NETWORK  ########################
 
 def load_model(plugin, model, weights, device):
     """
@@ -71,77 +40,87 @@ def load_model(plugin, model, weights, device):
     exec_net = plugin.load_network(network=net, device_name=device)
     return net, exec_net
 
+def load_face_model(plugin, device, model_dir):
+    model_xml = f"{model_dir}/face-detection-adas-0001/FP16/face-detection-adas-0001.xml"
+    model_bin = model_xml.replace(".xml", ".bin")
 
-####################  CREATE EXECUTION NETWORK  #######################
-net_facedetect, exec_facedetect = load_model(
-    plugin, FACEDETECT_XML, FACEDETECT_BIN, device)
+    print(f"Loading model {model_xml}")
 
-#################  OBTAIN INPUT & OUTPUT TENSOR  ######################
-# Face Detection Model
-#  Define Input&Output Network dict keys
-FACEDETECT_INPUTKEYS = 'data'
-FACEDETECT_OUTPUTKEYS = 'detection_out'
-#  Obtain image_count, channels, height and width
-n_facedetect, c_facedetect, h_facedetect, w_facedetect = net_facedetect.input_info[FACEDETECT_INPUTKEYS].input_data.shape
+    # Create the execution network
+    net_facedetect, exec_facedetect = load_model(plugin, model_xml, model_bin, device)
+
+    # input/output tensors
+    input_keys = 'data'
+    output_keys = 'detection_out'
+
+    #  Obtain image_count, channels, height and width
+    n, c, h, w = net_facedetect.input_info[input_keys].input_data.shape
+
+    return exec_facedetect, (n, c, h, w), input_keys, output_keys
+
+def picam_source(resolution=(640,480), framerate=24):
+    with picamera.PiCamera() as camera:
+        camera.resolution = resolution
+        camera.framerate = framerate
+        rawCapture = PiRGBArray(camera, size=resolution)
+        
+        # allow the camera to warmup
+        time.sleep(0.5)
+    
+        # capture frames from the camera
+        for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+            # grab the raw NumPy array representing the image
+            image = frame.array
+            yield image
+
+            # clear the stream in preparation for the next frame
+            rawCapture.truncate(0)
 
 
-#########################  READ VIDEO CAPTURE  ########################
-#  Using OpenCV to read Video/Camera
-#  Use 0 for Webcam, 1 for External Camera, or string with filepath for video
-if args.sample:
-    input_stream = 'face-demographics-walking-and-pause.mp4'
-else:
-    input_stream = args.camera
+def run_faces(model_dir, threshold):
+    #  Device Used for inference
+    device = "MYRIAD"
+    plugin = IECore()
 
-cap = cv.VideoCapture(input_stream)
+    # Load the model
+    exec_net, intput_dim, input_keys, output_keys = load_face_model(plugin, device, model_dir)
 
-#  If Video File, slow down the video playback based on FPS
-if type(input_stream) is str:
-    time.sleep(1/cap.get(cv.CAP_PROP_FPS))
+    # Pull from the camera
+    for image in picam_source():
 
-while cv.waitKey(1) != ord('q'):
-    if cap:
-        hasFrame, image = cap.read()
+        # Perform inference
+        blob = image_preprocessing(image, intput_dim)
+        req_handle = exec_net.start_async(request_id=0, inputs={input_keys: blob})
 
-    if not hasFrame:
-        break
+        # Get the result
+        status = req_handle.wait()
+        res = req_handle.output_blobs[output_keys].buffer
 
-    ###################  Start  Inference Face Detection  ###################
-    #  Start asynchronous inference and get inference result
-    blob = image_preprocessing(
-        image, n_facedetect, c_facedetect, h_facedetect, w_facedetect)
-    req_handle = exec_facedetect.start_async(
-        request_id=0, inputs={FACEDETECT_INPUTKEYS: blob})
+        # Get Bounding Box Result
+        for detection in res[0][0]:
+            # Face detection Confidence
+            confidence = float(detection[2])  
 
-    ######################## Get Inference Result  #########################
-    status = req_handle.wait()
-    res = req_handle.output_blobs[FACEDETECT_OUTPUTKEYS].buffer
+            if confidence < threshold:
+                continue
 
-    # Get Bounding Box Result
-    for detection in res[0][0]:
-        confidence = float(detection[2])  # Face detection Confidence
-        # Obtain Bounding box coordinate, +-10 just for padding
-        xmin = int(detection[3] * image.shape[1] - 10)
-        ymin = int(detection[4] * image.shape[0] - 10)
-        xmax = int(detection[5] * image.shape[1] + 10)
-        ymax = int(detection[6] * image.shape[0] + 10)
+            # Obtain Bounding box coordinate, +-10 just for padding
+            xmin = int(detection[3] * image.shape[1] - 10)
+            ymin = int(detection[4] * image.shape[0] - 10)
+            xmax = int(detection[5] * image.shape[1] + 10)
+            ymax = int(detection[6] * image.shape[0] + 10)
 
-        # OpenCV Drawing Set Up
-        font = cv.FONT_HERSHEY_SIMPLEX
-        fontColor = (0, 0, 255)
-        bottomLeftCornerOfText = (xmin, ymin-10)
-        fontScale = 0.6
-        lineType = 1
+            bbox = (xmin, ymin, xmax, ymax)
 
-        cv.putText(image, "press 'q' to exit", (4, 20),
-                   font, fontScale, fontColor, lineType)
+            print("Face: ", bbox)
 
-        # Crop Face which having confidence > 90%
-        if confidence > 0.9:
-            # Draw Boundingbox
-            cv.rectangle(image, (xmin, ymin), (xmax, ymax), fontColor)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="OpenVINO Face Detection")
+    parser.add_argument("-m", "--model_dir", required=True,
+                        type=str, help="Directory containing downloaded models")
+    parser.add_argument("-t", "--threshold", default=0.9,
+                        type=int, help="Minimum detection threshold")
 
-    cv.namedWindow('OpenVINO Face Detection', cv.WINDOW_NORMAL)
-    cv.moveWindow('OpenVINO Face Detection', 0, 0)
-    cv.resizeWindow('OpenVINO Face Detection', 700, 700)
-    cv.imshow('OpenVINO Face Detection', image)
+    args = parser.parse_args()
+
+    run_faces(args.model_dir, args.threshold)
