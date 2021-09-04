@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+ 
 import argparse
 import time
 import picamera
@@ -6,6 +8,8 @@ from picamera.array import PiRGBArray
 import numpy
 from openvino.inference_engine import IECore
 import cv2 as cv
+from clare_head_camera.msg import SemanticFrame
+
 
 # Input Image Preprocessing
 def image_preprocessing(image, dims_nchw):

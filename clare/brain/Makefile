@@ -86,3 +86,8 @@ pull:
 clean:
 	docker builder prune -a -f
 	docker system prune -f
+
+ros_pkgs:
+	# the setuptools option because of https://github.com/ros/catkin/issues/863
+	catkin_make -C ${rootdir}/head -DCMAKE_BUILD_TYPE=Release -DSETUPTOOLS_DEB_LAYOUT=OFF
+	make -C ${rootdir}/head/build install

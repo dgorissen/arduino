@@ -60,6 +60,13 @@ echo "* Starting web backend"
 echo $! > $LOGS/backend.pid
 sleep 2
 
+# Start the face detector
+# echo "* Starting head camera"
+# source ${CLARE}/../head/install/setup.bash
+# rosrun clare_head_camera face_detect_node.py -m /home/dgorissen/open_model_zoo/tools/downloader/intel/ 2>&1 | tee $LOGS/backend.txt &
+# echo $! > $LOGS/head_camera.pid
+# sleep 2
+
 # Execute any other command
 exec "$@"
 
