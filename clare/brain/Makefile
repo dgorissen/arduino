@@ -61,7 +61,7 @@ runpi:
 	dgorissen/clare
 
 	# Unfortunately privileged, /dev, and host network is all needed
-	# so that the neural compute stick to work inside docker
+	# so that the neural compute stick  will work inside docker
 
 	# /opt/vc stuff is needed for the pi camera
 	# https://www.losant.com/blog/how-to-access-the-raspberry-pi-camera-in-docker
