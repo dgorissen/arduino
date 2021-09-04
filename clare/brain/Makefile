@@ -47,6 +47,7 @@ runpi:
 	docker run \
 	--rm \
 	-v ${rootdir}:/home/dgorissen/clare \
+	-v ${HOME}/.Xauthority:/home/dgorissen/.Xauthority \
 	-h cbrain \
 	-p5000:5000 -p11311:11311 -p8080:8080 \
 	--device /dev/gpiomem \
