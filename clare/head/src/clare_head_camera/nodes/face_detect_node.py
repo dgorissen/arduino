@@ -3,16 +3,19 @@
 import argparse
 import time
 import picamera
+import rospy
 import io
 from picamera.array import PiRGBArray
 import numpy
 from openvino.inference_engine import IECore
 import cv2 as cv
 from clare_head_camera.msg import SemanticFrame
+from vision_msgs.msg import Detection2D, Detection2DArray
+from cv_bridge import CvBridge
 
 
 # Input Image Preprocessing
-def image_preprocessing(image, dims_nchw):
+def preprocess_image(image, dims_nchw):
     """
     Image Preprocessing steps, to match image 
     with Input Neural nets
@@ -21,10 +24,10 @@ def image_preprocessing(image, dims_nchw):
     (N, Channel, Height, Width)
     """
     n, c, h, w = dims_nchw
-    blob = cv.resize(image, (w, h))  # Resize width & height
-    blob = blob.transpose((2, 0, 1))  # Change data layout from HWC to CHW
+    scaled_image = cv.resize(image, (w, h))  # Resize width & height
+    blob = scaled_image.transpose((2, 0, 1))  # Change data layout from HWC to CHW
     blob = blob.reshape((n, c, h, w))
-    return blob
+    return scaled_image, blob
 
 def load_model(plugin, model, weights, device):
     """
@@ -81,7 +84,7 @@ def picam_source(resolution=(640,480), framerate=24):
             rawCapture.truncate(0)
 
 
-def run_faces(model_dir, threshold):
+def run_faces(model_dir, threshold, face_publisher):
     #  Device Used for inference
     device = "MYRIAD"
     plugin = IECore()
@@ -89,32 +92,59 @@ def run_faces(model_dir, threshold):
     # Load the model
     exec_net, intput_dim, input_keys, output_keys = load_face_model(plugin, device, model_dir)
 
+    # Message adaptor
+    bridge = CvBridge()
+
     # Pull from the camera
     for image in picam_source():
+        # image timestamp
+        image_ts = time.time()
 
         # Perform inference
-        blob = image_preprocessing(image, intput_dim)
+        scaled_image, blob = preprocess_image(image, intput_dim)
         req_handle = exec_net.start_async(request_id=0, inputs={input_keys: blob})
 
         # Get the result
         status = req_handle.wait()
         res = req_handle.output_blobs[output_keys].buffer
 
+        bbox_ts = time.time()
+
+        detection_arr = Detection2DArray()
+        detection_arr.header.stamp = bbox_ts
+
         # Get Bounding Box Result
-        for detection in res[0][0]:
+        for i, det in enumerate(res[0][0]):
             # Face detection Confidence
-            confidence = float(detection[2])  
+            confidence = float(det[2])  
 
             if confidence < threshold:
                 continue
 
             # Obtain Bounding box coordinate, +-10 just for padding
-            xmin = int(detection[3] * image.shape[1] - 10)
-            ymin = int(detection[4] * image.shape[0] - 10)
-            xmax = int(detection[5] * image.shape[1] + 10)
-            ymax = int(detection[6] * image.shape[0] + 10)
+            xmin = int(det[3] * image.shape[1] - 10)
+            ymin = int(det[4] * image.shape[0] - 10)
+            xmax = int(det[5] * image.shape[1] + 10)
+            ymax = int(det[6] * image.shape[0] + 10)
 
             bbox = (xmin, ymin, xmax, ymax)
+            # Center of the bounding box
+            bbox_cx = (xmax - xmin) / 2
+            bbox_cy = (ymax - ymin) / 2
+
+            detection = Detection2D()
+            detection.bbox.center.x = bbox_cx
+            detection.bbox.center.y = bbox_cy
+            detection.bbox.size_x = xmax - bbox_cx
+            detection.bbox.size_y = ymax - bbox_cy
+
+            if i == 0:
+                # Store the image on the first detection only
+                detection.source_img = bridge.cv2_to_imgmsg(scaled_image, encoding="passthrough")
+                detection.source_img.header.stamp = image_ts
+
+            detection_arr.detections.append(detection)
+            face_publisher.publish(detection_arr)
 
             print("Face: ", bbox)
 
@@ -127,4 +157,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    run_faces(args.model_dir, args.threshold)
+    # Create ros node
+    rospy.init_node("face_detector", anonymous=False, disable_signals=False)
+    face_pub = rospy.Publisher("image_faces", Detection2DArray, queue_size=10)
+
+    run_faces(args.model_dir, args.threshold, face_pub)

@@ -11,6 +11,9 @@ from std_msgs.msg import String
 from functools import wraps
 import datetime
 from clare.utils import shell_cmd
+from vision_msgs.msg import Detection2DArray
+from cv_bridge import CvBridge
+
 
 class ClareState:
     def __init__(self):
