@@ -27,6 +27,7 @@ else
 	docker buildx build -t dgorissen/clare \
 	--build-arg vinodist=${vinodist} \
 	--platform linux/arm/v7 \
+	--progress=plain \
 	--push .
 endif
 

@@ -1,4 +1,4 @@
-FROM ros:noetic
+FROM ros:noetic@sha256:3502680140f44f7d6e0f5d06694a932b440166eaaae3a7bb8459790377f695b4
 
 SHELL ["/bin/bash", "-c"]
 
@@ -92,8 +92,27 @@ eval "$(pyenv init --path)" \n\
 ' >> ~/.bashrc
 
 RUN pip install wheel
-RUN READTHEDOCS=True pip install \
-  picamera imutils numpy flask flask_cors pyyaml rospkg pyserial platformio netifaces
+RUN pip install numpy
+RUN READTHEDOCS=True pip install picamera
+RUN pip install imutils flask flask_cors pyyaml rospkg pyserial platformio netifaces
+RUN pip install pyopengl pyopengl_accelerate empy
+
+# Respeaker & ODAS
+RUN pip install pyusb click pyaudio pydub rpi.gpio
+
+RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
+  git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
+  cd pixel_ring && \
+  pip install -e . && \
+  git clone https://github.com/introlab/odas.git && \
+  mkdir odas/build && \
+  cd odas/build && \
+  cmake .. && \
+  make -j 2
+
+USER root
+RUN apt-get install -y ros-noetic-vision-msgs ros-noetic-sensor-msgs
+USER dgorissen
 
 # Install openvino
 ARG vinodist=ubuntu20
@@ -114,20 +133,7 @@ RUN cd openvino && \
 RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   cd open_model_zoo/tools/downloader && \
   pip install -r requirements.in && \
-  python3 downloader.py --name face-detection-adas-0001
-
-# Respeaker & ODAS
-RUN pip install pyusb click pyaudio rpi.gpio
-
-RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
-  git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
-  cd pixel_ring && \
-  pip install -e . && \
-  git clone https://github.com/introlab/odas.git && \
-  mkdir odas/build && \
-  cd odas/build && \
-  cmake .. && \
-  make -j 2
+  python3 downloader.py --name face-detection-retail-0004
 
 # Setup realsense (https://github.com/acrobotic/Ai_Demos_RPi/wiki/Raspberry-Pi-4-and-Intel-RealSense-D435)
 ENV APRIL_VERSION=3.1.4
@@ -144,15 +150,17 @@ RUN git clone --depth 1 --branch v2.49.0 https://github.com/IntelRealSense/libre
   mkdir build  && cd build && \
   cmake .. \
   -DBUILD_UNIT_TESTS=OFF \
-  -DBUILD_EXAMPLES=true \
+  -DBUILD_EXAMPLES=OFF \
   -DCMAKE_BUILD_TYPE=Release \
-  -DFORCE_RSUSB_BACKEND=true \
-  # -DBUILD_OPENVINO_EXAMPLES=ON \
-  # -DINTEL_OPENVINO_DIR=/home/dgorissen/openvino \
-  # -DOpenCV_DIR=/home/dgorissen/openvino/opencv \
-  # -DCMAKE_CXX_FLAGS=-isystem\ /home/dgorissen/openvino/inference_engine \
-  -DCMAKE_PREFIX_PATH=~/apriltag && \
-  make -j1
+  -DFORCE_RSUSB_BACKEND=ON \
+  -DCMAKE_PREFIX_PATH=~/apriltag
+
+RUN cd librealsense/build && \
+  make -j2
+
+RUN cd librealsense/build && \
+  cmake .. -DBUILD_EXAMPLES=true && \
+  make -j2
 
 RUN cd librealsense/build && \
   cmake .. \
@@ -160,11 +168,18 @@ RUN cd librealsense/build && \
   -DPYTHON_EXECUTABLE=$(which python3) && \
   make -j2
 
+# RUN cd librealsense/build && \
+#   cmake .. \
+#   -DBUILD_OPENVINO_EXAMPLES=ON \
+#   -DINTEL_OPENVINO_DIR=/home/dgorissen/openvino \
+#   -DOpenCV_DIR=/home/dgorissen/openvino/opencv && \
+#   make -j2
+
+  # -DCMAKE_CXX_FLAGS=-isystem\ /home/dgorissen/openvino/inference_engine \
+
 USER root
 RUN cd /home/dgorissen/librealsense/build && make install
 USER dgorissen
-
-RUN pip install pyopengl pyopengl_accelerate
 
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
