@@ -4,7 +4,7 @@ SHELL ["/bin/bash", "-c"]
 
 # Ros packages
 RUN apt-get update && apt-get install -y \
-      ros-${ROS_DISTRO}-desktop \
+      ros-noetic-desktop \
       python3-rosdep \
       python3-rosinstall \
       python3-rosinstall-generator \
@@ -46,7 +46,8 @@ RUN apt-get update && apt-get install -y ros-noetic-rosserial-python \
   libprotobuf-dev protobuf-compiler libtbb-dev ros-noetic-realsense2-camera libusb-1.0-0-dev \
   alsa-utils i2c-tools \
   ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization pcl-tools \
-  libssl-dev mesa-utils nmap
+  libssl-dev mesa-utils nmap \
+  ros-noetic-vision-msgs ros-noetic-sensor-msgs
 
 # create user
 RUN groupadd -r -g 1001 dgorissen && useradd -ms /bin/bash -u 1001 -g 1001 dgorissen && \
@@ -94,11 +95,10 @@ eval "$(pyenv init --path)" \n\
 RUN pip install wheel
 RUN pip install numpy
 RUN READTHEDOCS=True pip install picamera
-RUN pip install imutils flask flask_cors pyyaml rospkg pyserial platformio netifaces
-RUN pip install pyopengl pyopengl_accelerate empy
-
-# Respeaker & ODAS
-RUN pip install pyusb click pyaudio pydub rpi.gpio
+RUN pip install \
+  imutils flask flask_cors pyyaml rospkg pyserial platformio \
+  netifaces pyopengl pyopengl_accelerate empy \
+  pyusb click pyaudio pydub rpi.gpio
 
 RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
   git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
@@ -110,8 +110,30 @@ RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
   cmake .. && \
   make -j 2
 
+RUN git clone --depth 1 --branch v2.49.0 https://github.com/IntelRealSense/librealsense.git && \
+  cd librealsense && \
+  mkdir build  && cd build && \
+  cmake .. \
+  -DBUILD_UNIT_TESTS=OFF \
+  -DBUILD_EXAMPLES=OFF \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DFORCE_RSUSB_BACKEND=ON
+
+RUN cd librealsense/build && \
+  make -j2
+
+RUN cd librealsense/build && \
+  cmake .. -DBUILD_EXAMPLES=true && \
+  make -j2
+
+RUN cd librealsense/build && \
+  cmake .. \
+  -DBUILD_PYTHON_BINDINGS=ON \
+  -DPYTHON_EXECUTABLE=$(which python3) && \
+  make -j2
+
 USER root
-RUN apt-get install -y ros-noetic-vision-msgs ros-noetic-sensor-msgs
+RUN cd /home/dgorissen/librealsense/build && make install
 USER dgorissen
 
 # Install openvino
@@ -133,53 +155,7 @@ RUN cd openvino && \
 RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   cd open_model_zoo/tools/downloader && \
   pip install -r requirements.in && \
-  python3 downloader.py --name face-detection-retail-0004
-
-# Setup realsense (https://github.com/acrobotic/Ai_Demos_RPi/wiki/Raspberry-Pi-4-and-Intel-RealSense-D435)
-ENV APRIL_VERSION=3.1.4
-RUN wget https://github.com/AprilRobotics/apriltag/archive/refs/tags/v$APRIL_VERSION.tar.gz && \
-  tar -xzf v$APRIL_VERSION.tar.gz && \
-  mkdir apriltag-$APRIL_VERSION/build && \
-  cd apriltag-$APRIL_VERSION/build && \
-  # https://github.com/AprilRobotics/apriltag/issues/107
-  cmake -DCMAKE_INSTALL_PREFIX=~/apriltag/ -DBUILD_PYTHON_WRAPPER=OFF .. && \
-  make install
-
-RUN git clone --depth 1 --branch v2.49.0 https://github.com/IntelRealSense/librealsense.git && \
-  cd librealsense && \
-  mkdir build  && cd build && \
-  cmake .. \
-  -DBUILD_UNIT_TESTS=OFF \
-  -DBUILD_EXAMPLES=OFF \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DFORCE_RSUSB_BACKEND=ON \
-  -DCMAKE_PREFIX_PATH=~/apriltag
-
-RUN cd librealsense/build && \
-  make -j2
-
-RUN cd librealsense/build && \
-  cmake .. -DBUILD_EXAMPLES=true && \
-  make -j2
-
-RUN cd librealsense/build && \
-  cmake .. \
-  -DBUILD_PYTHON_BINDINGS=ON \
-  -DPYTHON_EXECUTABLE=$(which python3) && \
-  make -j2
-
-# RUN cd librealsense/build && \
-#   cmake .. \
-#   -DBUILD_OPENVINO_EXAMPLES=ON \
-#   -DINTEL_OPENVINO_DIR=/home/dgorissen/openvino \
-#   -DOpenCV_DIR=/home/dgorissen/openvino/opencv && \
-#   make -j2
-
-  # -DCMAKE_CXX_FLAGS=-isystem\ /home/dgorissen/openvino/inference_engine \
-
-USER root
-RUN cd /home/dgorissen/librealsense/build && make install
-USER dgorissen
+  python3 downloader.py --output_dir /home/dgorissen/openvino_models --name face-detection-retail-0004
 
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
@@ -194,3 +170,5 @@ EXPOSE 8080
 EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
+
+# /home/dgorissen/.pyenv/versions/3.7.10/bin/python3.7 -m pip install --upgrade pip

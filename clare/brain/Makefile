@@ -23,26 +23,12 @@ ifeq ($(build_arch), $(real_arch))
 else
 	echo "=== Building for ARM, vinodist is ${vinodist}"
 	sleep 2
-	docker buildx use clare-builder
 	docker buildx build -t dgorissen/clare \
 	--build-arg vinodist=${vinodist} \
 	--platform linux/arm/v7 \
 	--progress=plain \
 	--push .
 endif
-
-builder:
-	docker buildx create --name clare-builder
-	docker buildx inspect --bootstrap
-
-run:
-	docker run \
-	--rm \
-	-v ${rootdir}:/home/dgorissen/clare \
-	-h cbrain \
-	-p5000:5000 -p11311:11311 -p8080:8080 \
-	--name cbrain \
-	dgorissen/clare
 
 runpi:
 	docker run \
@@ -66,14 +52,6 @@ runpi:
 
 	# /opt/vc stuff is needed for the pi camera
 	# https://www.losant.com/blog/how-to-access-the-raspberry-pi-camera-in-docker
-
-runshell:
-	docker run -v ${rootdir}:/home/dgorissen/clare -h cbrain \
-	--rm \
-	-p5000:5000 -p11311:11311 -p8080:8080 \
-	--name cbrain \
-	-it \
-	dgorissen/clare
 
 execshell:
 	docker exec -e DISPLAY=${DISPLAY} -it cbrain bash
