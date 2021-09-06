@@ -54,18 +54,21 @@ echo "* Starting web frontend"
 npm run serve --prefix $CLARE/client > $LOGS/frontend.txt 2>&1 &
 echo $! > $LOGS/frontend.pid
 
+# Start the face detector
+# echo "* Starting head camera"
+set +x
+source ~/openvino/bin/setupvars.sh
+source ${CLARE}/../head/install/setup.bash
+set -x
+rosrun clare_head_camera face_detect_node.py -d /home/dgorissen/openvino_models/intel/ -p 4 2>&1 | tee $LOGS/backend.txt &
+echo $! > $LOGS/head_camera.pid
+sleep 3
+
 # Start web backend
 echo "* Starting web backend"
 /home/dgorissen/.pyenv/shims/python3 $CLARE/server/app.py 2>&1 | tee $LOGS/backend.txt &
 echo $! > $LOGS/backend.pid
 sleep 2
-
-# Start the face detector
-# echo "* Starting head camera"
-# source ${CLARE}/../head/install/setup.bash
-# rosrun clare_head_camera face_detect_node.py -d /home/dgorissen/open_model_zoo/tools/downloader/intel/ -p 4 2>&1 | tee $LOGS/backend.txt &
-# echo $! > $LOGS/head_camera.pid
-# sleep 2
 
 # Execute any other command
 exec "$@"

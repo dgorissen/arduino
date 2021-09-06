@@ -154,8 +154,11 @@ def head_video_stream():
     while True:
         # Get the current state
         tstate = STATE.head.get_state()
-        img = tstate["image"]
-        yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + bytearray(img) + b'\r\n')
+        img = tstate.get("image", None)
+        if img is None:
+            time.sleep(0.5)
+        else:
+            yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + bytearray(img) + b'\r\n')
 
 @app.route("/head/facefeed")
 @is_connected
