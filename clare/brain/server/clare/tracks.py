@@ -1,7 +1,7 @@
 import time
 class Tracks:
     def __init__(self, pub):
-        self._state = None
+        self._state = {}
         self._pub = pub
 
     def set_headlights(self, state):
