@@ -62,7 +62,7 @@
             style="max-width: 20rem"
             class="mb-2"
           >
-          <b-card-text>Photo actions</b-card-text>
+          <!--b-card-text>Photo actions</b-card-text>
           <p />
           <b-button
             :disabled="!photo_ready"
@@ -73,7 +73,12 @@
           <p />
           Last Photo:
           <p />
-          <b-img v-bind:src="photo_src" rounded fluid alt=""></b-img>
+          <b-img v-bind:src="photo_src" rounded fluid alt=""></b-img-->
+
+          <p />
+          Video feed:
+          <p />
+          <b-img id="vid-feed" src rounded fluid alt=""></b-img>
         </b-card>
       </b-col>
 
@@ -88,6 +93,7 @@ var api = process.env.VUE_APP_API_LOCATION;
 // EventSources
 var tracksStateStream = null;
 var middleStateStream = null;
+//var headStateStream = null;
 
 function setupEventSource(src, name, handler) {
   src.addEventListener('open', (e) => {
@@ -115,6 +121,7 @@ function setupEventSource(src, name, handler) {
 function closeEventSources() {
   if (tracksStateStream != null) tracksStateStream.close();
   if (middleStateStream != null) middleStateStream.close();
+  //if (headStateStream != null) headStateStream.close();
 }
 
 export default {
@@ -124,6 +131,7 @@ export default {
       connected: null,
       track_state: {},
       middle_state: {},
+      head_state: {},
       photo_ready: true,
       photo_src: "",
     };
@@ -142,8 +150,12 @@ export default {
     connected: function (val) {
       if(val) {
         this.connectToStreams();
+        document.getElementById('vid-feed')
+         .setAttribute('src', api + '/head/facefeed');
       } else {
         this.closeStreams();
+        document.getElementById('vid-feed')
+         .setAttribute('src', '');
       }
     },
   },
@@ -180,6 +192,9 @@ export default {
 
       middleStateStream = new EventSource(api + "/middle/stream");
       setupEventSource(middleStateStream, "middle", (data) => this.middle_state = data);
+
+      // headStateStream = new EventSource(api + "/head/stream");
+      // setupEventSource(headStateStream, "head", (data) => this.head_state = data);
     },
     closeStreams: function() {
       closeEventSources();

@@ -23,30 +23,18 @@ ifeq ($(build_arch), $(real_arch))
 else
 	echo "=== Building for ARM, vinodist is ${vinodist}"
 	sleep 2
-	docker buildx use clare-builder
 	docker buildx build -t dgorissen/clare \
 	--build-arg vinodist=${vinodist} \
 	--platform linux/arm/v7 \
+	--progress=plain \
 	--push .
 endif
-
-builder:
-	docker buildx create --name clare-builder
-	docker buildx inspect --bootstrap
-
-run:
-	docker run \
-	--rm \
-	-v ${rootdir}:/home/dgorissen/clare \
-	-h cbrain \
-	-p5000:5000 -p11311:11311 -p8080:8080 \
-	--name cbrain \
-	dgorissen/clare
 
 runpi:
 	docker run \
 	--rm \
 	-v ${rootdir}:/home/dgorissen/clare \
+	-v ${HOME}/.Xauthority:/home/dgorissen/.Xauthority \
 	-h cbrain \
 	-p5000:5000 -p11311:11311 -p8080:8080 \
 	--device /dev/gpiomem \
@@ -60,18 +48,10 @@ runpi:
 	dgorissen/clare
 
 	# Unfortunately privileged, /dev, and host network is all needed
-	# so that the neural compute stick to work inside docker
+	# so that the neural compute stick  will work inside docker
 
 	# /opt/vc stuff is needed for the pi camera
 	# https://www.losant.com/blog/how-to-access-the-raspberry-pi-camera-in-docker
-
-runshell:
-	docker run -v ${rootdir}:/home/dgorissen/clare -h cbrain \
-	--rm \
-	-p5000:5000 -p11311:11311 -p8080:8080 \
-	--name cbrain \
-	-it \
-	dgorissen/clare
 
 execshell:
 	docker exec -e DISPLAY=${DISPLAY} -it cbrain bash
@@ -85,3 +65,8 @@ pull:
 clean:
 	docker builder prune -a -f
 	docker system prune -f
+
+ros_pkgs:
+	# the setuptools option because of https://github.com/ros/catkin/issues/863
+	catkin_make -C ${rootdir}/head -DCMAKE_BUILD_TYPE=Release -DSETUPTOOLS_DEB_LAYOUT=OFF
+	make -C ${rootdir}/head/build install

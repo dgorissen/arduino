@@ -1,10 +1,10 @@
-FROM ros:noetic
+FROM ros:noetic@sha256:3502680140f44f7d6e0f5d06694a932b440166eaaae3a7bb8459790377f695b4
 
 SHELL ["/bin/bash", "-c"]
 
 # Ros packages
 RUN apt-get update && apt-get install -y \
-      ros-${ROS_DISTRO}-desktop \
+      ros-noetic-desktop \
       python3-rosdep \
       python3-rosinstall \
       python3-rosinstall-generator \
@@ -28,10 +28,12 @@ RUN apt-get install -y build-essential \
    libx264-dev libgtk-3-dev libcanberra-gtk* \
    libatlas-base-dev gfortran python3-dev 
 
-# upgrade cmake to avoid crosscompile bug
+# upgrade cmake to avoid crosscompile bug in the ubuntu bundled cmake (3.16)
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \
   apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main' && \
-  apt-get install -y cmake cmake-curses-gui
+  apt-cache policy cmake-data && \
+  apt-cache policy cmake-curses-gui && \
+  apt-get install -y cmake=3.20.2-0kitware1ubuntu20.04.1 cmake-data=3.20.2-0kitware1ubuntu20.04.1 cmake-curses-gui=3.20.2-0kitware1ubuntu20.04.1
 
 # nodejs & vue
 RUN curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash - && \
@@ -43,7 +45,9 @@ RUN apt-get update && apt-get install -y ros-noetic-rosserial-python \
   usbutils pulseaudio-utils lame mpg123 audacity libfftw3-dev libconfig-dev libasound2-dev portaudio19-dev \
   libprotobuf-dev protobuf-compiler libtbb-dev ros-noetic-realsense2-camera libusb-1.0-0-dev \
   alsa-utils i2c-tools \
-  ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization pcl-tools
+  ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization pcl-tools \
+  libssl-dev mesa-utils nmap \
+  ros-noetic-vision-msgs ros-noetic-sensor-msgs
 
 # create user
 RUN groupadd -r -g 1001 dgorissen && useradd -ms /bin/bash -u 1001 -g 1001 dgorissen && \
@@ -70,7 +74,8 @@ ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 RUN set -ex \
     && curl https://pyenv.run | bash \
     && pyenv update \
-    && pyenv install $PYTHON_VERSION \
+    # openvino needs a shared library, else we only get a static library
+    && PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install $PYTHON_VERSION \
     && pyenv global $PYTHON_VERSION \
     && pyenv rehash
 
@@ -88,8 +93,48 @@ eval "$(pyenv init --path)" \n\
 ' >> ~/.bashrc
 
 RUN pip install wheel
-RUN READTHEDOCS=True pip install \
-  picamera imutils numpy flask flask_cors pyyaml rospkg pyserial platformio netifaces
+RUN pip install numpy
+RUN READTHEDOCS=True pip install picamera
+RUN pip install \
+  imutils flask flask_cors pyyaml rospkg pyserial platformio \
+  netifaces pyopengl pyopengl_accelerate empy \
+  pyusb click pyaudio pydub rpi.gpio
+
+RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
+  git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
+  cd pixel_ring && \
+  pip install -e . && \
+  git clone https://github.com/introlab/odas.git && \
+  mkdir odas/build && \
+  cd odas/build && \
+  cmake .. && \
+  make -j 2
+
+RUN git clone --depth 1 --branch v2.49.0 https://github.com/IntelRealSense/librealsense.git && \
+  cd librealsense && \
+  mkdir build  && cd build && \
+  cmake .. \
+  -DBUILD_UNIT_TESTS=OFF \
+  -DBUILD_EXAMPLES=OFF \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DFORCE_RSUSB_BACKEND=ON
+
+RUN cd librealsense/build && \
+  make -j2
+
+RUN cd librealsense/build && \
+  cmake .. -DBUILD_EXAMPLES=true && \
+  make -j2
+
+RUN cd librealsense/build && \
+  cmake .. \
+  -DBUILD_PYTHON_BINDINGS=ON \
+  -DPYTHON_EXECUTABLE=$(which python3) && \
+  make -j2
+
+USER root
+RUN cd /home/dgorissen/librealsense/build && make install
+USER dgorissen
 
 # Install openvino
 ARG vinodist=ubuntu20
@@ -110,57 +155,7 @@ RUN cd openvino && \
 RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   cd open_model_zoo/tools/downloader && \
   pip install -r requirements.in && \
-  python3 downloader.py --name face-detection-adas-0001
-
-# Respeaker & ODAS
-RUN pip install pyusb click pyaudio rpi.gpio
-
-RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
-  git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
-  cd pixel_ring && \
-  pip install -e . && \
-  git clone https://github.com/introlab/odas.git && \
-  mkdir odas/build && \
-  cd odas/build && \
-  cmake .. && \
-  make -j 2
-
-# Setup realsense (https://github.com/acrobotic/Ai_Demos_RPi/wiki/Raspberry-Pi-4-and-Intel-RealSense-D435)
-ENV APRIL_VERSION=3.1.4
-RUN wget https://github.com/AprilRobotics/apriltag/archive/refs/tags/v$APRIL_VERSION.tar.gz && \
-  tar -xzf v$APRIL_VERSION.tar.gz && \
-  mkdir apriltag-$APRIL_VERSION/build && \
-  cd apriltag-$APRIL_VERSION/build && \
-  # https://github.com/AprilRobotics/apriltag/issues/107
-  cmake -DCMAKE_INSTALL_PREFIX=~/apriltag/ -DBUILD_PYTHON_WRAPPER=OFF .. && \
-  make install
-
-RUN git clone --depth 1 --branch v2.48.0 https://github.com/IntelRealSense/librealsense.git && \
-  cd librealsense && \
-  mkdir build  && cd build && \
-  cmake .. \
-  -DBUILD_UNIT_TESTS=OFF \
-  -DBUILD_EXAMPLES=true \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DFORCE_RSUSB_BACKEND=true \
-  # -DBUILD_OPENVINO_EXAMPLES=ON \
-  # -DINTEL_OPENVINO_DIR=/home/dgorissen/openvino \
-  # -DOpenCV_DIR=/home/dgorissen/openvino/opencv \
-  # -DCMAKE_CXX_FLAGS=-isystem\ /home/dgorissen/openvino/inference_engine \
-  -DCMAKE_PREFIX_PATH=~/apriltag && \
-  make -j2
-
-RUN cd librealsense/build && \
-  cmake .. \
-  -DBUILD_PYTHON_BINDINGS=ON \
-  -DPYTHON_EXECUTABLE=$(which python3) && \
-  make -j2
-
-USER root
-RUN cd /home/dgorissen/librealsense/build && make install
-USER dgorissen
-
-RUN pip install opengl pyopengl pyopengl_accelerate
+  python3 downloader.py --output_dir /home/dgorissen/openvino_models --name face-detection-retail-0004
 
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
@@ -176,4 +171,4 @@ EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
 
-# libssl-dev mesa-utils nmap
+# /home/dgorissen/.pyenv/versions/3.7.10/bin/python3.7 -m pip install --upgrade pip

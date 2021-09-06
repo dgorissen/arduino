@@ -141,6 +141,6 @@ apt get install x11-apps
 
 
 # Test neural compute stick
- ./openvino/build_samples/armv7l/Release/object_detection_sample_ssd -m /home/dgorissen/open_model_zoo/tools/downloader/intel/face-detection-adas-0001/FP16/face-detection-adas-0001.xml -d MYRIAD -i clare/school.jpg
+~/openvino/build_samples/armv7l/Release/object_detection_sample_ssd -m /home/dgorissen/open_model_zoo/tools/downloader/intel/face-detection-adas-0001/FP16/face-detection-adas-0001.xml -d MYRIAD -i ~/clare/school.jpg
 
 # nmap

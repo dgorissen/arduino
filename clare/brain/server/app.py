@@ -6,16 +6,20 @@ import json
 import time
 from flask_cors import CORS
 from clare.tracks import Tracks
+from clare.head import HeadCamera
 import rospy
 from std_msgs.msg import String
 from functools import wraps
 import datetime
 from clare.utils import shell_cmd
+from sensor_msgs.msg import Image
+from vision_msgs.msg import Detection2DArray
 
 class ClareState:
     def __init__(self):
         self.tracks = None
         self.middle = None
+        self.head = None
 
 def is_connected(f):
     @wraps(f)
@@ -52,9 +56,13 @@ def init_state():
     m = ClareMiddle()
     rospy.Subscriber("clare_middle", String, m.status_callback)
 
+    h = HeadCamera()
+    rospy.Subscriber("images", Image, h.status_callback)
+
     cs = ClareState()
     cs.tracks = t
     cs.middle = m
+    cs.head = h
 
     STATE = cs
 
@@ -141,6 +149,23 @@ def get_stream(source):
 
     return Response(stream(), mimetype="text/event-stream")
 
+def head_video_stream():
+    last_ts = 0
+    while True:
+        # Get the current state
+        tstate = STATE.head.get_state()
+        img = tstate.get("image", None)
+        if img is None:
+            time.sleep(0.5)
+        else:
+            yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + bytearray(img) + b'\r\n')
+
+@app.route("/head/facefeed")
+@is_connected
+def vidfeed():
+	return Response(head_video_stream(),
+		mimetype = "multipart/x-mixed-replace; boundary=frame")
+
 def make_stream(msg_name, state_getter):
     def _stream():
         last_ts = 0
@@ -149,14 +174,13 @@ def make_stream(msg_name, state_getter):
             tstate = state_getter()
             ts = tstate.get("ts", -1)
 
-            if tstate["ts"] != last_ts:
+            if ts > 0 and ts != last_ts:
                 last_ts = ts
-                yield "event: " + msg_name + "\n" + "data: " + json.dumps(tstate) + "\n\n"
+                yield f"event: {msg_name}" + "\ndata: " + json.dumps(tstate) + "\n\n"
             else:
-                time.sleep(0.5)
+                time.sleep(0.2)
 
     return _stream
-
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', threaded=True)
