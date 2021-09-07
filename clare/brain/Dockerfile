@@ -17,9 +17,6 @@ RUN apt-get install -y wget vim keychain tree screen git software-properties-com
 RUN add-apt-repository ppa:x2go/stable && \
   apt-get install -y openssh-server x2goserver x2goserver-xsession
   
-# XFCE
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4
-
 #  Openvino dependencies
 RUN apt-get install -y build-essential \
    unzip pkg-config libjpeg-dev libpng-dev \
@@ -47,7 +44,8 @@ RUN apt-get update && apt-get install -y ros-noetic-rosserial-python \
   alsa-utils i2c-tools \
   ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization pcl-tools \
   libssl-dev mesa-utils nmap \
-  ros-noetic-vision-msgs ros-noetic-sensor-msgs
+  ros-noetic-vision-msgs ros-noetic-sensor-msgs \
+  swig pulseaudio libpulse-dev libudev-dev
 
 # create user
 RUN groupadd -r -g 1001 dgorissen && useradd -ms /bin/bash -u 1001 -g 1001 dgorissen && \
@@ -92,23 +90,9 @@ export PATH="$PYENV_ROOT/bin:$PATH" \n\
 eval "$(pyenv init --path)" \n\
 ' >> ~/.bashrc
 
+RUN python -m pip install --upgrade pip
 RUN pip install wheel
 RUN pip install numpy
-RUN READTHEDOCS=True pip install picamera
-RUN pip install \
-  imutils flask flask_cors pyyaml rospkg pyserial platformio \
-  netifaces pyopengl pyopengl_accelerate empy \
-  pyusb click pyaudio pydub rpi.gpio
-
-RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
-  git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
-  cd pixel_ring && \
-  pip install -e . && \
-  git clone https://github.com/introlab/odas.git && \
-  mkdir odas/build && \
-  cd odas/build && \
-  cmake .. && \
-  make -j 2
 
 RUN git clone --depth 1 --branch v2.49.0 https://github.com/IntelRealSense/librealsense.git && \
   cd librealsense && \
@@ -135,6 +119,23 @@ RUN cd librealsense/build && \
 USER root
 RUN cd /home/dgorissen/librealsense/build && make install
 USER dgorissen
+
+RUN READTHEDOCS=True pip install picamera
+RUN pip install \
+  imutils flask flask_cors pyyaml rospkg pyserial platformio \
+  netifaces pyopengl pyopengl_accelerate empy \
+  pyusb click pyaudio pydub rpi.gpio \
+  pocketsphinx webrtcvad respeaker hidapi
+
+RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
+  git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
+  cd pixel_ring && \
+  pip install -e . && \
+  git clone https://github.com/introlab/odas.git && \
+  mkdir odas/build && \
+  cd odas/build && \
+  cmake .. && \
+  make -j 2
 
 # Install openvino
 ARG vinodist=ubuntu20
@@ -170,5 +171,3 @@ EXPOSE 8080
 EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
-
-# /home/dgorissen/.pyenv/versions/3.7.10/bin/python3.7 -m pip install --upgrade pip
