@@ -125,17 +125,7 @@ RUN pip install \
   imutils flask flask_cors pyyaml rospkg pyserial platformio \
   netifaces pyopengl pyopengl_accelerate empy \
   pyusb click pyaudio pydub rpi.gpio \
-  pocketsphinx webrtcvad respeaker hidapi
-
-RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
-  git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
-  cd pixel_ring && \
-  pip install -e . && \
-  git clone https://github.com/introlab/odas.git && \
-  mkdir odas/build && \
-  cd odas/build && \
-  cmake .. && \
-  make -j 2
+  pocketsphinx webrtcvad respeaker hidapi speechrecognition
 
 # Install openvino
 ARG vinodist=ubuntu20
@@ -158,9 +148,25 @@ RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   pip install -r requirements.in && \
   python3 downloader.py --output_dir /home/dgorissen/openvino_models --name face-detection-retail-0004
 
+USER root
+RUN apt-get install -y ros-noetic-respeaker-ros ros-noetic-sound-play ros-noetic-speech-recognition-msgs
+USER dgorissen
+
+RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
+  git clone https://github.com/respeaker/pocketsphinx-data.git && \
+  git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
+  cd pixel_ring && \
+  pip install -e . && \
+  git clone https://github.com/introlab/odas.git && \
+  mkdir odas/build && \
+  cd odas/build && \
+  cmake .. && \
+  make -j 2
+
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
 source /opt/ros/noetic/setup.bash \n\
+export POCKETSPHINX_DATA=$HOME/pocketsphinx-data \n\
 ' >> ~/.bashrc
 
 RUN mkdir ~/clare
