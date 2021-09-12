@@ -149,7 +149,10 @@ RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   python3 downloader.py --output_dir /home/dgorissen/openvino_models --name face-detection-retail-0004
 
 USER root
-RUN apt-get install -y ros-noetic-respeaker-ros ros-noetic-sound-play ros-noetic-speech-recognition-msgs
+RUN apt-get install -y \
+  ros-noetic-respeaker-ros ros-noetic-sound-play ros-noetic-speech-recognition-msgs \
+  festival festvox-don festvox-us-slt-hts festvox-rablpc16k festvox-kallpc16k festvox-kdlpc16k \
+  libttspico-utils espeak
 USER dgorissen
 
 RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
@@ -162,6 +165,16 @@ RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
   cd odas/build && \
   cmake .. && \
   make -j 2
+
+RUN git clone https://github.com/MycroftAI/mimic.git 
+RUN cd mimic && \
+  ./autogen.sh && \
+  ./configure --prefix="/usr/local" && \
+  make -j 2
+
+USER root
+RUN cd mimic && make install
+USER dgorissen
 
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
