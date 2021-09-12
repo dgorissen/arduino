@@ -64,6 +64,18 @@ rosrun clare_head_camera face_detect_node.py -d /home/dgorissen/openvino_models/
 echo $! > $LOGS/head_camera.pid
 sleep 3
 
+# Start speech recogniser
+echo "* Starting respeaker node"
+${CLARE}/../jsk_3rdparty/respeaker_ros/scripts/respeaker_node.py 2>&1 | tee $LOGS/respeaker.txt &
+echo $! > $LOGS/respeaker.pid
+sleep 3
+
+# Start speech to text
+echo "* Starting speech to text"
+${CLARE}/../jsk_3rdparty/respeaker_ros/scripts/speech_to_text.py 2>&1 | tee $LOGS/speech_to_text.txt &
+echo $! > $LOGS/speech_to_text.pid
+sleep 3
+
 # Start web backend
 echo "* Starting web backend"
 /home/dgorissen/.pyenv/shims/python3 $CLARE/server/app.py 2>&1 | tee $LOGS/backend.txt &
