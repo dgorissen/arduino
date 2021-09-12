@@ -139,6 +139,13 @@ aplay --device plughw:2,0 a.wav
 
 apt get install x11-apps
 
+# install respeaker rules so we can access without being root
+dgorissen@cbrain:~/arduino/clare $ more 60-respeaker.rules
+SUBSYSTEM=="usb", ATTR{idProduct}=="0018", ATTR{idVendor}=="2886", MODE:="0666"
+sudo systemctl restart udev
+
+# Also ensure the realsense and neural compute stick udev rules are installed
+
 
 # Test neural compute stick
 ~/openvino/build_samples/armv7l/Release/object_detection_sample_ssd -m /home/dgorissen/open_model_zoo/tools/downloader/intel/face-detection-adas-0001/FP16/face-detection-adas-0001.xml -d MYRIAD -i ~/clare/school.jpg
