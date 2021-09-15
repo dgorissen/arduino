@@ -150,10 +150,17 @@ RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
 
 USER root
 RUN apt-get install -y \
-  ros-noetic-respeaker-ros ros-noetic-sound-play ros-noetic-speech-recognition-msgs \
+  ros-noetic-sound-play ros-noetic-audio-play \
+  ros-noetic-speech-recognition-msgs ros-noetic-audio-capture \
+  ros-noetic-image-proc ros-noetic-rviz \
+  ros-noetic-app-manager ros-noetic-catkin-virtualenv \
   festival festvox-don festvox-us-slt-hts festvox-rablpc16k festvox-kallpc16k festvox-kdlpc16k \
-  libttspico-utils espeak
+  libttspico-utils espeak libxslt-dev libxml2-dev rsync
+
+# ros-noetic-respeaker-ros 
+
 USER dgorissen
+RUN pip install requests-oauthlib lxml scipy matplotlib scikit-learn catkin-tools
 
 RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
   git clone https://github.com/respeaker/pocketsphinx-data.git && \
