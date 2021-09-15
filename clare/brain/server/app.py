@@ -6,6 +6,7 @@ import json
 import time
 from flask_cors import CORS
 from clare.tracks import Tracks
+from clare.voice import ClareVoice
 from clare.head import HeadCamera
 import rospy
 from std_msgs.msg import String
@@ -14,12 +15,15 @@ import datetime
 from clare.utils import shell_cmd
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2DArray
+from speech_recognition_msgs.msg import SpeechRecognitionCandidates
+import re
 
 class ClareState:
     def __init__(self):
         self.tracks = None
         self.middle = None
         self.head = None
+        self.voice = None
 
 def is_connected(f):
     @wraps(f)
@@ -58,6 +62,9 @@ def init_state():
 
     h = HeadCamera()
     rospy.Subscriber("images", Image, h.status_callback)
+
+    v = ClareVoice()
+    rospy.Subscriber("speech_to_text", SpeechRecognitionCandidates, v.status_callback)
 
     cs = ClareState()
     cs.tracks = t
@@ -137,6 +144,17 @@ def make_photo():
 def get_photo(fn):
     return send_file(f"/tmp/{fn}", mimetype='image/jpeg')
 
+@app.roiute("/voice/speak")
+def speak():
+    tts = request.args.get('tts', default="", type=str)
+    # No naughty strings
+    tts = re.sub(r'\W+', '', tts)
+
+    if tts:
+        return shell_cmd(f"mimic -t {tts}")
+    else:
+        return "", 200
+
 @app.route("/<source>/stream")
 @is_connected
 def get_stream(source):
@@ -144,6 +162,8 @@ def get_stream(source):
         stream = make_stream("tracks", STATE.tracks.get_state)
     elif source == "middle":
         stream = make_stream("middle", STATE.middle.get_state)
+    elif source == "voice":
+        stream = make_stream("voice", STATE.voice.get_state)
     else:
         return f"Invalid stream source {source}", 500
 

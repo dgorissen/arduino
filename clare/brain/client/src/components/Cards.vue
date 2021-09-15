@@ -54,7 +54,7 @@
 
       <b-col l="4">
         <b-card
-            title="Photo"
+            title="Camera"
             img-src="../assets/img/selfie.png"
             img-alt="Image"
             img-top
@@ -62,7 +62,7 @@
             style="max-width: 20rem"
             class="mb-2"
           >
-          <!--b-card-text>Photo actions</b-card-text>
+          <!--b-card-text>Camera actions</b-card-text>
           <p />
           <b-button
             :disabled="!photo_ready"
@@ -81,7 +81,39 @@
           <b-img id="vid-feed" src rounded fluid alt=""></b-img>
         </b-card>
       </b-col>
-
+    </b-row>
+    <b-row>
+      <b-col l="4">
+        <b-card
+            title="Voice"
+            img-src="../assets/img/voice.png"
+            img-alt="Image"
+            img-top
+            tag="article"
+            style="max-width: 20rem"
+            class="mb-2"
+          >
+          <b-card-text>Voice actions</b-card-text>
+          <p />
+          <b-button
+            :disabled="!voice_ready"
+            v-on:click="speak()"
+            variant="primary"
+            >Speak to me</b-button
+          >
+          <b-form-input v-model="tts_input" placeholder="Hello. I am Clare and I do not like aubergines"></b-form-input>
+          <p />
+          What I have heard so far:
+          <p />
+          <b-form-textarea
+            id="textarea"
+            v-model="stt_output"
+            placeholder="No data yet..."
+            rows="3"
+            max-rows="6"
+          ></b-form-textarea>
+        </b-card>
+      </b-col>
     </b-row>
   </b-container>
 </template>
@@ -93,6 +125,7 @@ var api = process.env.VUE_APP_API_LOCATION;
 // EventSources
 var tracksStateStream = null;
 var middleStateStream = null;
+var sttStream = null;
 //var headStateStream = null;
 
 function setupEventSource(src, name, handler) {
@@ -121,6 +154,7 @@ function setupEventSource(src, name, handler) {
 function closeEventSources() {
   if (tracksStateStream != null) tracksStateStream.close();
   if (middleStateStream != null) middleStateStream.close();
+  if (sttStream != null) sttStream.close();
   //if (headStateStream != null) headStateStream.close();
 }
 
@@ -134,6 +168,8 @@ export default {
       head_state: {},
       photo_ready: true,
       photo_src: "",
+      tts_input: "",
+      stt_output: "",
     };
   },
   watch: {
@@ -186,12 +222,27 @@ export default {
           console.log(err);
         });
     },
+    speak: function () {
+      this.voice_ready = false;
+      const params = new URLSearchParams([['tts', this.tts_input]]);
+      axios
+        .get(api + "/voice/speak", {params})
+        .then((res) => {
+          this.voice_ready = true;
+        })
+        .catch((err) => {
+          console.log(err);
+        });
+    },
     connectToStreams: function(){
       tracksStateStream = new EventSource(api + "/tracks/stream");
       setupEventSource(tracksStateStream, "tracks", (data) => this.track_state = data);
 
       middleStateStream = new EventSource(api + "/middle/stream");
       setupEventSource(middleStateStream, "middle", (data) => this.middle_state = data);
+
+      sttStream = new EventSource(api + "/voice/stream");
+      setupEventSource(sttStream, "stt", (data) => this.tts_output.concat(data + "\n"));
 
       // headStateStream = new EventSource(api + "/head/stream");
       // setupEventSource(headStateStream, "head", (data) => this.head_state = data);
