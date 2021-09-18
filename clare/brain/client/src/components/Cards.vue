@@ -168,8 +168,9 @@ export default {
       head_state: {},
       photo_ready: true,
       photo_src: "",
-      tts_input: "",
+      tts_input: "Hello my cute bunny",
       stt_output: "",
+      voice_ready: true,
     };
   },
   watch: {
@@ -223,15 +224,17 @@ export default {
         });
     },
     speak: function () {
+      if (!this.tts_input) return;
       this.voice_ready = false;
-      const params = new URLSearchParams([['tts', this.tts_input]]);
       axios
-        .get(api + "/voice/speak", {params})
+        .get(api + "/voice/speak", {params: { tts: this.tts_input }})
         .then((res) => {
+          console.log(res);
           this.voice_ready = true;
         })
         .catch((err) => {
           console.log(err);
+          this.voice_ready = true;
         });
     },
     connectToStreams: function(){

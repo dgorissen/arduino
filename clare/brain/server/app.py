@@ -70,6 +70,7 @@ def init_state():
     cs.tracks = t
     cs.middle = m
     cs.head = h
+    cs.voice = v
 
     STATE = cs
 
@@ -144,14 +145,14 @@ def make_photo():
 def get_photo(fn):
     return send_file(f"/tmp/{fn}", mimetype='image/jpeg')
 
-@app.roiute("/voice/speak")
+@app.route("/voice/speak")
 def speak():
     tts = request.args.get('tts', default="", type=str)
     # No naughty strings
-    tts = re.sub(r'\W+', '', tts)
+    tts = re.sub(r'[^0-9a-zA-Z ]+', '', tts)
 
     if tts:
-        return shell_cmd(f"mimic -t {tts}")
+        return shell_cmd(f"festival -b '(voice_cmu_us_slt_arctic_hts)' '(SayText \"{tts}\")'")
     else:
         return "", 200
 
