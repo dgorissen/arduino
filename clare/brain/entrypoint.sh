@@ -37,15 +37,6 @@ sleep 5
 RUN_ID=`rosparam get /run_id`
 ROSOUT_FILE=~/.ros/log/${RUN_ID}/rosout.log
 
-if [ ! -z "simplemode" ]; then
-    echo "==========="
-    echo "Simple mode"
-    echo "==========="
-    while true; do sleep 1000; done
-else
-    exit -1
-fi
-
 # Connect to tracks
 echo "* Starting rosserial_python for tracks"
 rosrun rosserial_python serial_node.py _baud:=115200 _port:="${tracks_serial}"  2>&1 | tee $LOGS/tracks.txt &

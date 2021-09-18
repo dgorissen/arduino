@@ -33,7 +33,6 @@ else
 endif
 
 runpi:
-	echo "Run mode is ${simplemode}"
 	docker run \
 	--rm \
 	-v ${rootdir}:/home/dgorissen/clare \
@@ -44,7 +43,6 @@ runpi:
 	--privileged \
 	--network=host \
 	-e DISPLAY=${DISPLAY} \
-	-e simplemode=${simplemode} \
 	-v /dev:/dev \
 	-v /opt/vc:/opt/vc \
 	--env LD_LIBRARY_PATH=/opt/vc/lib \
