@@ -41,11 +41,18 @@ RUN curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash - && \
 RUN apt-get update && apt-get install -y ros-noetic-rosserial-python \
   usbutils pulseaudio-utils lame mpg123 audacity libfftw3-dev libconfig-dev libasound2-dev portaudio19-dev \
   libprotobuf-dev protobuf-compiler libtbb-dev ros-noetic-realsense2-camera libusb-1.0-0-dev \
-  alsa-utils i2c-tools \
-  ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization pcl-tools \
-  libssl-dev mesa-utils nmap \
+  alsa-utils i2c-tools pcl-tools libssl-dev mesa-utils nmap swig pulseaudio libpulse-dev libudev-dev \
+  libxslt-dev libxml2-dev rsync
+
+RUN apt-get install -y \
+  ros-noetic-imu-filter-madgwick ros-noetic-rtabmap-ros ros-noetic-robot-localization \
   ros-noetic-vision-msgs ros-noetic-sensor-msgs \
-  swig pulseaudio libpulse-dev libudev-dev
+  ros-noetic-sound-play ros-noetic-audio-play ros-noetic-respeaker-ros \
+  ros-noetic-speech-recognition-msgs ros-noetic-audio-capture \
+  ros-noetic-image-proc ros-noetic-rviz \
+  ros-noetic-app-manager ros-noetic-catkin-virtualenv \
+  festival festvox-don festvox-us-slt-hts festvox-rablpc16k festvox-kallpc16k festvox-kdlpc16k \
+  libttspico-utils espeak flite
 
 # create user
 RUN groupadd -r -g 1001 dgorissen && useradd -ms /bin/bash -u 1001 -g 1001 dgorissen && \
@@ -125,7 +132,8 @@ RUN pip install \
   imutils flask flask_cors pyyaml rospkg pyserial platformio \
   netifaces pyopengl pyopengl_accelerate empy \
   pyusb click pyaudio pydub rpi.gpio \
-  pocketsphinx webrtcvad respeaker hidapi speechrecognition
+  pocketsphinx webrtcvad respeaker hidapi speechrecognition \ 
+  requests-oauthlib lxml scipy matplotlib scikit-learn catkin-tools
 
 # Install openvino
 ARG vinodist=ubuntu20
@@ -148,20 +156,6 @@ RUN git clone --depth 1 https://github.com/openvinotoolkit/open_model_zoo && \
   pip install -r requirements.in && \
   python3 downloader.py --output_dir /home/dgorissen/openvino_models --name face-detection-retail-0004
 
-USER root
-RUN apt-get install -y \
-  ros-noetic-sound-play ros-noetic-audio-play \
-  ros-noetic-speech-recognition-msgs ros-noetic-audio-capture \
-  ros-noetic-image-proc ros-noetic-rviz \
-  ros-noetic-app-manager ros-noetic-catkin-virtualenv \
-  festival festvox-don festvox-us-slt-hts festvox-rablpc16k festvox-kallpc16k festvox-kdlpc16k \
-  libttspico-utils espeak libxslt-dev libxml2-dev rsync
-
-# ros-noetic-respeaker-ros 
-
-USER dgorissen
-RUN pip install requests-oauthlib lxml scipy matplotlib scikit-learn catkin-tools
-
 RUN git clone https://github.com/respeaker/usb_4_mic_array.git && \
   git clone https://github.com/respeaker/pocketsphinx-data.git && \
   git clone --depth 1 https://github.com/respeaker/pixel_ring.git && \
@@ -181,12 +175,33 @@ RUN cd mimic && \
 
 USER root
 RUN cd mimic && make install
+RUN apt-get remove -y ros-noetic-respeaker-ros
+USER dgorissen
+
+RUN mkdir -p ~/catkin_ws/src && cd ~/catkin_ws/src && \
+  git clone https://github.com/jsk-ros-pkg/jsk_3rdparty.git && \
+  source /opt/ros/noetic/setup.bash && \
+  cd ~/catkin_ws && \
+  catkin config --init && \
+  catkin build respeaker_ros
+
+# USER root
+# # Avoid popping/crackling sound https://cdn-learn.adafruit.com/downloads/pdf/adafruit-speaker-bonnet-for-raspberry-pi.pdf
+# RUN echo -e '[Unit] \n\
+# Description=Invoke aplay from /dev/zero at system start. \n\
+# [Service] \n\
+# ExecStart=/usr/bin/aplay -D default -t raw -r 44100 -c 2 -f S16_LE /dev/zero \n\
+# [Install] \n\
+# WantedBy=multi-user.target \n\
+# ' >> /etc/systemd/system/aplay.service
+# RUN systemctl daemon-reload && systemctl enable aplay
 USER dgorissen
 
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
 source /opt/ros/noetic/setup.bash \n\
 export POCKETSPHINX_DATA=$HOME/pocketsphinx-data \n\
+export ALSA_CARD=sndrpihifiberry \n\
 ' >> ~/.bashrc
 
 RUN mkdir ~/clare
