@@ -66,13 +66,16 @@ sleep 3
 
 # Start speech recogniser
 echo "* Starting respeaker node"
-${CLARE}/../jsk_3rdparty/respeaker_ros/scripts/respeaker_node.py 2>&1 | tee $LOGS/respeaker.txt &
+set +x
+source ~/catkin_ws/devel/setup.bash
+set -x
+rosrun respeaker_ros respeaker_node.py 2>&1 | tee $LOGS/respeaker.txt &
 echo $! > $LOGS/respeaker.pid
 sleep 3
 
 # Start speech to text
 echo "* Starting speech to text"
-${CLARE}/../jsk_3rdparty/respeaker_ros/scripts/speech_to_text.py 2>&1 | tee $LOGS/speech_to_text.txt &
+rosrun respeaker_ros speech_to_text.py 2>&1 | tee $LOGS/speech_to_text.txt &
 echo $! > $LOGS/speech_to_text.pid
 sleep 3
 
