@@ -129,7 +129,8 @@ udevadm control --reload-rules && udevadm trigger
 exit
 
 
-# adafruit sound bonnet: TODO
+# adafruit sound bonnet: 
+curl -sS https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/master/i2samp.sh | bash
 # list devices:
 aplay -l
 # Record from respeaker
