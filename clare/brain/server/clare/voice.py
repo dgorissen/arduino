@@ -11,5 +11,6 @@ class ClareVoice:
     def status_callback(self, data):
         cur = {}
         cur["ts"] = time.time()
-        cur["transcript"] = zip(data.transcript, data.confidence)
+        # Take the first one only
+        cur["transcript"] = data.transcript[0]
         self._state = cur

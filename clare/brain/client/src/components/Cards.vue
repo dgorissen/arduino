@@ -245,7 +245,9 @@ export default {
       setupEventSource(middleStateStream, "middle", (data) => this.middle_state = data);
 
       sttStream = new EventSource(api + "/voice/stream");
-      setupEventSource(sttStream, "stt", (data) => this.tts_output.concat(data + "\n"));
+      setupEventSource(sttStream, "voice", (data) => {
+        this.stt_output = this.stt_output.concat(data + "\n")
+      });
 
       // headStateStream = new EventSource(api + "/head/stream");
       // setupEventSource(headStateStream, "head", (data) => this.head_state = data);
