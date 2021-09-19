@@ -247,6 +247,9 @@ export default {
       sttStream = new EventSource(api + "/voice/stream");
       setupEventSource(sttStream, "voice", (data) => {
         this.stt_output = this.stt_output.concat(data.transcript + "\n")
+        // Always keep scrolling to the bottom of the stt output
+        var ta = document.getElementById('textarea');
+        ta.scrollTop = ta.scrollHeight;
       });
 
       // headStateStream = new EventSource(api + "/head/stream");
@@ -257,10 +260,6 @@ export default {
     },
   },
   mounted() {
-    // Always keep scrolling to the bottom of the stt output
-    var ta = document.getElementById('textarea');
-    ta.scrollTop = ta.scrollHeight;
-  
     axios
       .get(api + "/")
       .then((response) => {
