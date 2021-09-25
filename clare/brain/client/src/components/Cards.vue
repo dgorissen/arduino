@@ -79,6 +79,10 @@
           Video feed:
           <p />
           <b-img id="vid-feed" src rounded fluid alt=""></b-img>
+          <p />
+          Depth feed:
+          <p />
+          <b-img id="depth-feed" src rounded fluid alt=""></b-img>
         </b-card>
       </b-col>
     </b-row>
@@ -189,9 +193,13 @@ export default {
         this.connectToStreams();
         document.getElementById('vid-feed')
          .setAttribute('src', api + '/head/facefeed');
+        document.getElementById('depth-feed')
+         .setAttribute('src', api + '/body/depthfeed');
       } else {
         this.closeStreams();
         document.getElementById('vid-feed')
+         .setAttribute('src', '');
+        document.getElementById('depth-feed')
          .setAttribute('src', '');
       }
     },
