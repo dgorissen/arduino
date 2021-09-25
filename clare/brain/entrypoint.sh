@@ -79,6 +79,12 @@ python ~/catkin_ws/src/jsk_3rdparty/respeaker_ros/scripts/speech_to_text.py _sel
 echo $! > $LOGS/speech_to_text.pid
 sleep 3
 
+# Start speech to text
+echo "* Starting realsense"
+roslaunch realsense2_camera rs_camera.launch | tee $LOGS/realsense.txt &
+echo $! > $LOGS/realsense.pid
+sleep 3
+
 # Start web backend
 echo "* Starting web backend"
 /home/dgorissen/.pyenv/shims/python3 $CLARE/server/app.py 2>&1 | tee $LOGS/backend.txt &
