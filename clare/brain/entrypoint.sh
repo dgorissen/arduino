@@ -97,4 +97,3 @@ exec "$@"
 # Keep container running
 echo "* Tailing rosout file ${ROSOUT_FILE}"
 tail -f ${ROSOUT_FILE}
-

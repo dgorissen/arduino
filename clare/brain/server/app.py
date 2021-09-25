@@ -1,13 +1,10 @@
-from clare.middle import ClareMiddle
 from flask import Flask, Response, render_template, session, request, jsonify, send_file
 from random import randint
 import subprocess
 import json
 import time
 from flask_cors import CORS
-from clare.tracks import Tracks
-from clare.voice import ClareVoice
-from clare.head import HeadCamera
+from clare.state import *
 import rospy
 from std_msgs.msg import String
 from functools import wraps
@@ -16,6 +13,7 @@ from clare.utils import shell_cmd
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2DArray
 from speech_recognition_msgs.msg import SpeechRecognitionCandidates
+from sensor_msgs.msg import CompressedImage
 import re
 
 class ClareState:
@@ -24,6 +22,7 @@ class ClareState:
         self.middle = None
         self.head = None
         self.voice = None
+        self.realsense = None
 
 def is_connected(f):
     @wraps(f)
@@ -66,11 +65,15 @@ def init_state():
     v = ClareVoice()
     rospy.Subscriber("speech_to_text", SpeechRecognitionCandidates, v.status_callback)
 
+    r = RealsenseDepth()
+    rospy.Subscriber("/camera/depth/image_rect_raw/compressedDepth", CompressedImage, r.status_callback)
+
     cs = ClareState()
     cs.tracks = t
     cs.middle = m
     cs.head = h
     cs.voice = v
+    cs.realsense = r
 
     STATE = cs
 
@@ -171,12 +174,12 @@ def get_stream(source):
 
     return Response(stream(), mimetype="text/event-stream")
 
-def head_video_stream():
+def jpeg_stream(state_getter, field):
     last_ts = 0
     while True:
         # Get the current state
-        tstate = STATE.head.get_state()
-        img = tstate.get("image", None)
+        tstate = state_getter()
+        img = tstate.get(field, None)
         if img is None:
             time.sleep(0.5)
         else:
@@ -184,8 +187,14 @@ def head_video_stream():
 
 @app.route("/head/facefeed")
 @is_connected
-def vidfeed():
-	return Response(head_video_stream(),
+def facefeed():
+	return Response(jpeg_stream(STATE.head.get_state, "image"),
+		mimetype = "multipart/x-mixed-replace; boundary=frame")
+
+@app.route("/body/depthfeed")
+@is_connected
+def depthfeed():
+	return Response(jpeg_stream(STATE.realsense.get_state, "depth"),
 		mimetype = "multipart/x-mixed-replace; boundary=frame")
 
 def make_stream(msg_name, state_getter):
