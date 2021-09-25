@@ -66,7 +66,7 @@ def init_state():
     rospy.Subscriber("speech_to_text", SpeechRecognitionCandidates, v.status_callback)
 
     r = RealsenseDepth()
-    rospy.Subscriber("/camera/depth/image_rect_raw/compressedDepth", CompressedImage, r.status_callback)
+    rospy.Subscriber("/camera/depth/image_rect_raw/compressed", CompressedImage, r.status_callback)
 
     cs = ClareState()
     cs.tracks = t

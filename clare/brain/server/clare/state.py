@@ -80,7 +80,7 @@ class ClareMiddle(BaseState):
 
 class ClareVoice(BaseState):
     def __init__(self):
-        super(ClareMiddle, self).__init__()
+        super(ClareVoice, self).__init__()
 
     def status_callback(self, data):
         cur = {}
@@ -97,7 +97,7 @@ class RealsenseDepth(BaseState):
 
     def status_callback(self, data):
         # Assumes a compressed depth image
-        cv2_img = self._bridge.compressed_imgmsg_to_cv2(data, "mono16")
+        cv2_img = self._bridge.compressed_imgmsg_to_cv2(data) #, "mono16")
         cv2_img = cv2.resize(cv2_img, (320, 240))
 
         (flag, jpg_img) = cv2.imencode(".jpg", cv2_img)
