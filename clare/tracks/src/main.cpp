@@ -38,6 +38,9 @@ const String pubto = "ros";
 State state_out;
 State state_in;
 
+// Last time we received an input state
+long last_in_state_ts = -999;
+
 // Motor variables
 Encoder encA(motor_encA1, motor_encA2);
 Encoder encB(motor_encB1, motor_encB2);
@@ -158,10 +161,22 @@ void dual_joystick(const int chL, const int chR, int &vL, int &vR){
 
 // Differential steering with one joystick
 // returns a +/- pwm value
-void single_joystick(const int chx, const int chy, int &vL, int &vR){
-	// Map raw channel input to -1, 1
-	const double joy_x = mapf(chx, rc_minpwm, rc_maxpwm, -1.0, 1.0);
-	const double joy_y = mapf(chy, rc_minpwm, rc_maxpwm, -1.0, 1.0);
+void single_joystick(const int chx, const int chy, int &vL, int &vR, const bool scale = true){
+	double joy_x, joy_y;
+
+	if(scale) {
+		// Map raw channel input to -1, 1
+		joy_x = mapf(chx, rc_minpwm, rc_maxpwm, -1.0, 1.0);
+		joy_y = mapf(chy, rc_minpwm, rc_maxpwm, -1.0, 1.0);
+	} else {
+		if(chx < -1 || chy < -1 || chx > 1 || chy > 1) {
+			Log.error("Input channel values do not lie in [-1, 1], chx: %d chy: %d", chx, chy);
+			// Dont try to recover, return
+			return;
+		}
+		joy_x = chx;
+		joy_y = chy;
+	}
 	const double r_max = 1.0;
 
 	// The model is a single joystick that can move in the x (left-right) and y (up-down)
@@ -228,14 +243,14 @@ void single_joystick(const int chx, const int chy, int &vL, int &vR){
 
 	Log.verbose("chx=%d, chy=%d, joy_x=%D, joy_y=%D, r=%D, theta=%D, joy_x_scaled=%D, joy_y_scaled=%D, rawL=%D, rawR=%D\n", chx, chy, joy_x, joy_y, r, theta, joy_x_scaled, joy_y_scaled, rawL, rawR);
 
-	// Convert to PMN range with negative equalling backwards
+	// Convert to PWM range with negative equalling backwards
 	vL = (int) (rawL * 255.0);
 	vR = (int) (rawR * 255.0);
 }
 
-void set_motor_speeds(const int chA, const int chB, int &vL, int &vR) {
+void set_motor_speeds(const int chA, const int chB, int &vL, int &vR, const bool scale=true) {
 	//dual_joystick(chA, chB, vL, vR);
-	single_joystick(chA, chB, vL, vR);
+	single_joystick(chA, chB, vL, vR, scale);
 	
 	// Handle deadband and reversing
 	const int deadband = motor_deadband;
@@ -276,6 +291,38 @@ void set_motor_speeds(const int chA, const int chB, int &vL, int &vR) {
 	set_speed(vL, vR);
 }
 
+void auto_mode(){
+  Log.notice("Doing one auto mode iteration");
+  if(state_in.getTimestamp() - last_in_state_ts > auto_timeout_sec * 1000) {
+	  // We havent received an update for a while
+	  // enter failsafe mode and come to a stop
+	  Log.warning("AUTO TIMEOUT EXCEEDED, FAILSAFE TRIGGERED\n");
+	  // Stop motors
+	  set_speed(0, 0);
+	  // Update the state
+	  state_out.setMotors(0, 0);
+	  state_out.setMode(FAILSAFE);
+	  // Give some time
+	  delay(100);
+  } else {
+	  last_in_state_ts = state_in.getTimestamp();
+
+ 	  // Read the values for each channel
+	  const int chx = state_in.getCmdX();
+	  const int chy = state_in.getCmdY();
+	  Log.notice("received CmdX, CmdY as: %d, %d\n", chx, chy);
+
+	  // Scale from [-100, 100] to [-1, 1]
+	  int vL = -999;
+	  int vR = -999;
+	  set_motor_speeds(chx / 100.0, chy / 100.0, vL, vR);
+
+	  // Update the state
+	  state_out.setMode(AUTONOMOUS);
+      state_out.setMotors(vL, vR);
+	}
+}
+
 void rc_mode(){
   // look for a good SBUS packet from the receiver
   if (x8r.Read()) {
@@ -294,14 +341,15 @@ void rc_mode(){
 		const int ch2 = x8r.rx_channels()[1];
 		const int ch3 = x8r.rx_channels()[2];
 		const int ch4 = x8r.rx_channels()[3];
-		Log.verbose("receiving: %d, %d, %d, %d\n", ch1, ch2 ,ch3,ch4);
+		const int ch5 = x8r.rx_channels()[4];
+		Log.verbose("receiving: %d, %d, %d, %d, %d\n", ch1, ch2, ch3, ch4, ch5);
 
 		int vL = -999;
 		int vR = -999;
 		set_motor_speeds(ch4, ch1, vL, vR);
 
 		// Update the state
-		state_out.setMode(MANUAL);
+		state_out.setMode(RC_CONTROL);
 		state_out.setMotors(vL, vR);
 	}
   } else {
@@ -324,40 +372,50 @@ void read_encoders() {
 }
 
 void act_upon_commands() {
-	// Set the control mode
-	if(state_in.getMode() == AUTONOMOUS) {
-		// TODO implement
-		state_out.setMode(AUTONOMOUS);
-	} else if(state_in.getMode() == MANUAL) {
-		// Follow RC commands
-		// This sets the mode and motor state_out fields internally
-		rc_mode();
-	} else {
-		// Mode not specified, dont change anything
-	}
-	
-	// set the headlights
-	if(state_in.getHeadlights() == HL_ON) {
-		set_headlights(true);
-	} else if(state_in.getHeadlights() == HL_OFF) {
-		set_headlights(false);
-	} else {
-		// not set, nothing to do
-	}
+	// Did we receive any (new) instructions?
+	if(state_in.isModified() || state_in.isSet()) {
+		// Yes we did!
+		
+		if(state_in.getMode() == AUTONOMOUS) {
+			// Follow externally given commands
+			// This sets the mode and motor state_out fields internally
+			auto_mode();
+		} else if(state_in.getMode() == RC_CONTROL) {
+			// Follow RC commands
+			// This sets the mode and motor state_out fields internally
+			rc_mode();
+		} else {
+			// Mode not specified, assume RC
+			rc_mode();
+		}
 
-	// All actions taken, clear all values
-	state_in.reset();
-}
-
-void loop() {
-	// Did we receive any instructions?
-	if(state_in.isModified()) {
-		// Act upon any commands
-		act_upon_commands();
 	} else {
 		// No instructions, default to one manual iteration
 		rc_mode();
 	}
+
+	if(state_in.isModified()) {
+		// New state was passed, take any actions based on it
+
+		// set the headlights
+		if(state_in.getHeadlights() == HL_ON) {
+			set_headlights(true);
+		} else if(state_in.getHeadlights() == HL_OFF) {
+			set_headlights(false);
+		} else {
+			// not set, nothing to do
+		}
+
+		// All actions taken
+		state_in.clearStatus();
+	} else {
+		// Working off previous state, nothing new
+	}
+}
+
+void loop() {
+	// Act upon any input state we received or had
+	act_upon_commands();	
 	
 	// Set and publish the output state
 	read_encoders();
@@ -366,6 +424,7 @@ void loop() {
 
 	// To avoid spamming, only publish if something changed
 	if(state_out.isModified()) {
+		state_out.setCurTimestamp();
 		const String s = state_out.serialise();
 		publish(s);
 		Log.notice("Published state: %s\n", s.c_str());

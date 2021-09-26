@@ -32,4 +32,7 @@ const int rc_maxpwm = 1811;
 //headlights
 const int headlights = 22;
 
+// Failsaife timeout in auto mode (in seconds)
+const int auto_timeout_sec = 2;
+
 #endif
