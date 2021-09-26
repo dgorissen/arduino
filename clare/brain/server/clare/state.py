@@ -37,6 +37,11 @@ class Tracks(BaseState):
         s = self._state.get("H", "0")
         return True if s == '1' else False
 
+    def send_move_command(self, x, y):
+        msg = f"CX:{x},CY:{y},M:A"
+
+        self._pub.publish(msg)
+
     def status_callback(self, data):
         cur = { "ts" : time.time() }
         for item in data.data.split(","):

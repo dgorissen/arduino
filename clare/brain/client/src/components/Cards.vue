@@ -30,7 +30,10 @@
             >Turn headlights {{ headlightActionStr() }}</b-button
           >
           <p />
-          <!-- Current state: {{ track_state }} -->
+            Track joystick
+            <div id="joystick"></div>
+          <p />
+          
           <b-table stacked :items="[track_state]"></b-table>
         </b-card>
       </b-col>
@@ -124,6 +127,9 @@
 
 <script>
 import axios from "axios";
+import nipplejs from "nipplejs";
+import _ from "lodash";
+
 var api = process.env.VUE_APP_API_LOCATION;
 
 // EventSources
@@ -131,6 +137,8 @@ var tracksStateStream = null;
 var middleStateStream = null;
 var sttStream = null;
 //var headStateStream = null;
+
+var joystick = null;
 
 function setupEventSource(src, name, handler) {
   src.addEventListener('open', (e) => {
@@ -195,6 +203,27 @@ export default {
          .setAttribute('src', api + '/head/facefeed');
         document.getElementById('depth-feed')
          .setAttribute('src', api + '/body/depthfeed');
+
+        joystick = nipplejs.create({
+          zone: document.getElementById('joystick'),
+          mode: 'static',
+          position: {left: '50%', top: '50%'},
+          color: 'red',
+          shape: 'square',
+          dynamicPage: true,
+        });
+
+	var that = this;
+
+        joystick.on('start end', function(evt, data) {
+          console.log(data);
+        }).on('move', function(evt, data) {
+          // Get x,y coordinates of the joystick in the -100,100 range
+          var x = Math.round(data.vector.x * 100);
+          var y = Math.round(data.vector.y * 100);
+          that.controlTracks(x,y);
+        });
+
       } else {
         this.closeStreams();
         document.getElementById('vid-feed')
@@ -216,6 +245,14 @@ export default {
           console.log(err);
         });
     },
+    controlTracks: _.throttle( (x, y) => {
+        console.log(x,y);
+	axios
+          .get(api + "/tracks/move", {params: {x: x, y:y}})
+          .catch((err) => {
+            console.log(err);
+          });
+    },300),
     headlightActionStr: function () {
       return this.headlights ? "off" : "on";
     },

@@ -116,6 +116,20 @@ def set_headlights(status):
 
     return f'Headlights set to {status}', 200
 
+@app.route("/tracks/move")
+@is_connected
+def tracks_move():
+    x = request.args.get('x', default=0, type=float)
+    y = request.args.get('y', default=0, type=float)
+
+    if abs(x) > 100 or abs(y) > 100:
+        return "Position out of range", 500
+
+    if x > 1 or y > 1:
+        STATE.tracks.send_move_command(x, y)
+    
+    return "",200
+
 @app.route("/tracks/state")
 @is_connected
 def tracks_state():
