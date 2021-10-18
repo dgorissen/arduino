@@ -201,7 +201,6 @@ RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
 source /opt/ros/noetic/setup.bash \n\
 export POCKETSPHINX_DATA=$HOME/pocketsphinx-data \n\
-export ALSA_CARD=sndrpihifiberry \n\
 ' >> ~/.bashrc
 
 RUN mkdir ~/clare
