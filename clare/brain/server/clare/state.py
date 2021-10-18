@@ -38,7 +38,7 @@ class Tracks(BaseState):
         return True if s == '1' else False
 
     def send_move_command(self, x, y):
-        msg = f"CX:{x},CY:{y},M:A"
+        msg = f"CX:{int(x)},CY:{int(y)},M:A"
 
         self._pub.publish(msg)
 
