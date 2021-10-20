@@ -101,8 +101,8 @@ void setup_logging(){
 	// Available levels are:
     // LOG_LEVEL_SILENT, LOG_LEVEL_FATAL, LOG_LEVEL_ERROR, LOG_LEVEL_WARNING,
 	// LOG_LEVEL_NOTICE, LOG_LEVEL_TRACE, LOG_LEVEL_VERBOSE
-    //Log.begin(LOG_LEVEL_VERBOSE, &Serial);
     Log.begin(LOG_LEVEL_NOTICE, &Serial);
+    //Log.begin(LOG_LEVEL_VERBOSE, &Serial);
 }
 
 // Publish a message to the outside world
@@ -291,36 +291,56 @@ void set_motor_speeds(const int chA, const int chB, int &vL, int &vR, const bool
 	set_speed(vL, vR);
 }
 
-void auto_mode(){
-  Log.notice("Doing one auto mode iteration");
-  if(state_in.getTimestamp() - last_in_state_ts > auto_timeout_sec * 1000) {
-	  // We havent received an update for a while
-	  // enter failsafe mode and come to a stop
-	  Log.warning("AUTO TIMEOUT EXCEEDED, FAILSAFE TRIGGERED\n");
-	  // Stop motors
-	  set_speed(0, 0);
-	  // Update the state
-	  state_out.setMotors(0, 0);
-	  state_out.setMode(FAILSAFE);
-	  // Give some time
-	  delay(100);
+void auto_mode(const bool new_input){
+  Log.trace("Doing one auto mode iteration");
+  // Do we have a valid command
+  const long cur_state_ts = state_in.getTimestamp();
+
+  if(cur_state_ts < 0) {
+	  // We havent received any valid commands, nothing to do
+	  return;
+  }
+
+  // Ok, we have a valid command. Is it an old or a new one
+
+  if(new_input) {
+	// Yep, its new, do it
+
+	// Read the values for each channel
+	const int chx = state_in.getCmdX();
+	const int chy = state_in.getCmdY();
+	Log.notice("received CmdX, CmdY as: %d, %d\n", chx, chy);
+
+	// Scale from [-100, 100] to [-1, 1]
+	int vL = -999;
+	int vR = -999;
+	set_motor_speeds(chx / 100.0, chy / 100.0, vL, vR, false);
+
+	// Update the state
+	state_out.setMode(AUTONOMOUS);
+	state_out.setMotors(vL, vR);
+	state_out.setCmdX(chx);
+	state_out.setCmdY(chy);
+
   } else {
-	  last_in_state_ts = state_in.getTimestamp();
-
- 	  // Read the values for each channel
-	  const int chx = state_in.getCmdX();
-	  const int chy = state_in.getCmdY();
-	  Log.notice("received CmdX, CmdY as: %d, %d\n", chx, chy);
-
-	  // Scale from [-100, 100] to [-1, 1]
-	  int vL = -999;
-	  int vR = -999;
-	  set_motor_speeds(chx / 100.0, chy / 100.0, vL, vR);
-
-	  // Update the state
-	  state_out.setMode(AUTONOMOUS);
-      state_out.setMotors(vL, vR);
-	}
+	  // Nope, its a command from a previous iteration, how long ago?
+	  const long delta = millis() - cur_state_ts;
+	  
+	  if (delta < auto_timeout_sec * 1000) {
+		// Ok, its pretty recent, leave things as is
+	  } else {
+		// Its been a long time since we heard anything, not good
+		// Enter failsafe mode and come to a stop
+		Log.warning("AUTO TIMEOUT EXCEEDED (%l ms > %d s), FAILSAFE TRIGGERED\n", delta, auto_timeout_sec);
+		// Stop motors
+		set_speed(0, 0);
+		// Update the state
+		state_out.setMotors(0, 0);
+		state_out.setMode(FAILSAFE);
+		// Give some time to stop
+		delay(2000);
+	  }	  
+  }
 }
 
 void rc_mode(){
@@ -342,7 +362,7 @@ void rc_mode(){
 		const int ch3 = x8r.rx_channels()[2];
 		const int ch4 = x8r.rx_channels()[3];
 		const int ch5 = x8r.rx_channels()[4];
-		Log.verbose("receiving: %d, %d, %d, %d, %d\n", ch1, ch2, ch3, ch4, ch5);
+		Log.notice("Received RC input: %d, %d, %d, %d, %d\n", ch1, ch2, ch3, ch4, ch5);
 
 		int vL = -999;
 		int vR = -999;
@@ -353,8 +373,8 @@ void rc_mode(){
 		state_out.setMotors(vL, vR);
 	}
   } else {
-	  Log.verbose("Failed to read a good RC packet");
-	  delay(20);
+	  Log.trace("Failed to read a good RC packet");
+	  delay(50);
   }
 }
 
@@ -373,28 +393,34 @@ void read_encoders() {
 
 void act_upon_commands() {
 	// Did we receive any (new) instructions?
-	if(state_in.isModified() || state_in.isSet()) {
-		// Yes we did!
-		
-		if(state_in.getMode() == AUTONOMOUS) {
-			// Follow externally given commands
-			// This sets the mode and motor state_out fields internally
-			auto_mode();
-		} else if(state_in.getMode() == RC_CONTROL) {
-			// Follow RC commands
-			// This sets the mode and motor state_out fields internally
-			rc_mode();
-		} else {
-			// Mode not specified, assume RC
-			rc_mode();
-		}
+	const bool new_input = (last_in_state_ts != state_in.getTimestamp());
 
+	if (new_input) {	
+		// Yes we did!
+		Log.trace("Received an input state: %s", state_in.serialise().c_str());
+		// Update the previous state ts
+		last_in_state_ts = state_in.getTimestamp();
+	}
+
+	// Send motor commands
+
+	if(state_in.getMode() == AUTONOMOUS) {
+		// Follow externally given commands
+		// This sets the mode and motor state_out fields internally
+		auto_mode(new_input);
+	} else if(state_in.getMode() == RC_CONTROL) {
+		// Follow RC commands
+		// This sets the mode and motor state_out fields internally
+		rc_mode();
 	} else {
-		// No instructions, default to one manual iteration
+		// Default to RC
 		rc_mode();
 	}
 
-	if(state_in.isModified()) {
+	// Give some time for the motors
+	delay(50);
+
+	if(new_input) {
 		// New state was passed, take any actions based on it
 
 		// set the headlights
@@ -405,9 +431,6 @@ void act_upon_commands() {
 		} else {
 			// not set, nothing to do
 		}
-
-		// All actions taken
-		state_in.clearStatus();
 	} else {
 		// Working off previous state, nothing new
 	}
@@ -427,11 +450,11 @@ void loop() {
 		state_out.setCurTimestamp();
 		const String s = state_out.serialise();
 		publish(s);
-		Log.notice("Published state: %s\n", s.c_str());
+		Log.trace("Published state: %s\n", s.c_str());
 		state_out.clearStatus();
 	} else {
 		const String s = state_out.serialise();
-		Log.verbose("State not changed/published: %s\n", s.c_str());
+		Log.trace("State not changed/published: %s\n", s.c_str());
 	}
 
 	// Add a short delay
