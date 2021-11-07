@@ -169,7 +169,7 @@ def speak():
     tts = re.sub(r'[^0-9a-zA-Z ]+', '', tts)
 
     if tts:
-        cmd = f"festival -b '(voice_cmu_us_slt_arctic_hts)' '(SayText \"{tts}\")'"
+        cmd = f"ALSA_CARD=Headphones festival -b '(voice_cmu_us_slt_arctic_hts)' '(SayText \"{tts}\")'"
         return shell_cmd(cmd)
     else:
         return "", 200
