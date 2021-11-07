@@ -15,6 +15,7 @@ from vision_msgs.msg import Detection2DArray
 from speech_recognition_msgs.msg import SpeechRecognitionCandidates
 from sensor_msgs.msg import CompressedImage
 import re
+import threading
 
 class ClareState:
     def __init__(self):
@@ -44,7 +45,7 @@ app.config.from_object(__name__)
 CORS(app, resources={r'/*': {'origins': '*'}})
 
 # Create ros node
-rospy.init_node("brain_backend", anonymous=False, disable_signals=True)
+threading.Thread(target=lambda: rospy.init_node('brain_backend', disable_signals=True)).start()
 
 def init_state():
     global STATE
