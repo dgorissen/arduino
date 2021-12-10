@@ -211,3 +211,8 @@ EXPOSE 8080
 EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
+
+# pip3 install adafruit-extended-bus
+# pip3 install adafruit-circuitpython-bme680
+# pip evdev
+# apt ir-keytable 

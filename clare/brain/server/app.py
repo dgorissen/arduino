@@ -24,6 +24,7 @@ class ClareState:
         self.head = None
         self.voice = None
         self.realsense = None
+        self.top = None
 
 def is_connected(f):
     @wraps(f)
@@ -69,12 +70,15 @@ def init_state():
     r = RealsenseDepth()
     rospy.Subscriber("/camera/depth/image_rect_raw/compressed", CompressedImage, r.status_callback)
 
+    top = ClareTop()
+
     cs = ClareState()
     cs.tracks = t
     cs.middle = m
     cs.head = h
     cs.voice = v
     cs.realsense = r
+    cs.top = top
 
     STATE = cs
 
@@ -140,6 +144,11 @@ def tracks_state():
 @is_connected
 def middle_state():
     return jsonify(STATE.middle.get_state())
+
+@app.route("/top/state")
+@is_connected
+def top_state():
+    return jsonify(STATE.top.get_state())
 
 @app.route("/system/audio_devices")
 def audio_devices():
@@ -227,6 +236,24 @@ def make_stream(msg_name, state_getter):
                 time.sleep(0.2)
 
     return _stream
+
+@app.route("/body/move_arms")
+def move_arms():
+    l = request.args.get('l', default=0, type=int)
+    r = request.args.get('r', default=0, type=int)
+    STATE.top.set_arm_pos(l, r)
+    return "", 200
+
+@app.route("/body/fan/<state>")
+def set_fan(state):
+    s = True if state == "on" else False
+    STATE.top.set_fan(s)
+    return "", 200
+
+@app.route("/body/lights/<state>")
+def set_lights(state):
+    STATE.top.set_lights(state)
+    return "", 200
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', threaded=True)
