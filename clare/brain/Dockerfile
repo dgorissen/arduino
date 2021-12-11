@@ -185,17 +185,13 @@ RUN mkdir -p ~/catkin_ws/src && cd ~/catkin_ws/src && \
   catkin config --init && \
   catkin build respeaker_ros
 
-# USER root
-# # Avoid popping/crackling sound https://cdn-learn.adafruit.com/downloads/pdf/adafruit-speaker-bonnet-for-raspberry-pi.pdf
-# RUN echo -e '[Unit] \n\
-# Description=Invoke aplay from /dev/zero at system start. \n\
-# [Service] \n\
-# ExecStart=/usr/bin/aplay -D default -t raw -r 44100 -c 2 -f S16_LE /dev/zero \n\
-# [Install] \n\
-# WantedBy=multi-user.target \n\
-# ' >> /etc/systemd/system/aplay.service
-# RUN systemctl daemon-reload && systemctl enable aplay
+USER root
+RUN apt-get install -y ir-keytable
+
 USER dgorissen
+RUN pip install adafruit-extended-bus adafruit-circuitpython-bme680 \
+    adafruit-circuitpython-pca9685 adafruit-circuitpython-servokit \
+    rpi_ws281x adafruit-circuitpython-neopixel adafruit-blinka evdev
 
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
@@ -211,8 +207,3 @@ EXPOSE 8080
 EXPOSE 11311
 
 CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
-
-# pip3 install adafruit-extended-bus
-# pip3 install adafruit-circuitpython-bme680
-# pip evdev
-# apt ir-keytable 
