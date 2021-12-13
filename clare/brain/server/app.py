@@ -4,7 +4,7 @@ import subprocess
 import json
 import time
 from flask_cors import CORS
-from clare.state import *
+from clare.state import Tracks, ClareMiddle, HeadCamera, ClareVoice, RealsenseDepth, ClareTop
 import rospy
 from std_msgs.msg import String
 from functools import wraps
@@ -71,7 +71,7 @@ def init_state():
     rospy.Subscriber("/camera/depth/image_rect_raw/compressed", CompressedImage, r.status_callback)
 
     top = ClareTop()
-
+    
     cs = ClareState()
     cs.tracks = t
     cs.middle = m
