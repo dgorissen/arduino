@@ -193,6 +193,18 @@ RUN pip install adafruit-extended-bus adafruit-circuitpython-bme680 \
     adafruit-circuitpython-pca9685 adafruit-circuitpython-servokit \
     rpi_ws281x adafruit-circuitpython-neopixel adafruit-blinka evdev
 
+USER root
+RUN apt-get install -y libinput-tools
+# Not pretty but ensure gpio, i2c groups exist and have same GIDs as on the host
+RUN groupadd -g 997 gpio \
+    && groupadd -g 999 spi \
+    && groupmod -g 998 i2c \
+    && usermod -a -G gpio dgorissen \
+    # TODO input group on the host ends up as systemd-network group inside...
+    # Needed for access to the IR
+    && usermod -a -G systemd-network dgorissen
+
+USER dgorissen
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
 source /opt/ros/noetic/setup.bash \n\
