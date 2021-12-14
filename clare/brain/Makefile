@@ -45,6 +45,7 @@ runpi:
 	-e DISPLAY=${DISPLAY} \
 	-v /dev:/dev \
 	-v /opt/vc:/opt/vc \
+	-v /run/udev/data:/run/udev/data \
 	--env LD_LIBRARY_PATH=/opt/vc/lib \
 	--name cbrain \
 	dgorissen/clare
@@ -54,6 +55,9 @@ runpi:
 
 	# /opt/vc stuff is needed for the pi camera
 	# https://www.losant.com/blog/how-to-access-the-raspberry-pi-camera-in-docker
+
+	# /run/udev/data is from
+	# https://stackoverflow.com/questions/50789172/libinput-in-a-docker-container
 
 execshell:
 	docker exec -e DISPLAY=${DISPLAY} -it cbrain bash

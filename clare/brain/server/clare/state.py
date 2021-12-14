@@ -95,10 +95,12 @@ class ClareMiddle(BaseState):
 class ClareTop(BaseState):
     def __init__(self):
         super(ClareTop, self).__init__()
-
-        GPIO.setwarnings(True) 
-        # Use physical pin numbering
-        GPIO.setmode(GPIO.BOARD)
+        
+        if GPIO.getmode() is None:            
+            GPIO.setwarnings(True)
+        
+            # Use physical pin numbering
+            GPIO.setmode(GPIO.BOARD)
 
         # 3x latching push buttons
         self._button_pins = [15, 16, 18]
@@ -125,12 +127,12 @@ class ClareTop(BaseState):
         self._setup_fan()
 
         # Setup IR receiver
-        self._ir_thread = Thread(self._setup_ir, daemon=True)
+        self._ir_thread = Thread(target=self._setup_ir, daemon=True)
         self._ir_thread.start()
 
         # Setup LED ring
         self._setup_lights()
-        self._led_thread = Thread(self._run_lights, daemon=True)
+        self._led_thread = Thread(target=self._run_lights, daemon=True)
         self._led_thread.start()
 
     def __button_callback(self, idx, pin):
@@ -154,7 +156,9 @@ class ClareTop(BaseState):
                 assert(f"Invalid rotary switch state {pin}:{val} and {other_pin}:{other_val}")
 
     def _setup_buttons(self):        
-        for i, pin in enumerate(self.button_pins + self._rotary_pins):
+        return
+        for i, pin in enumerate(self._button_pins + self._rotary_pins):
+            print(f"Setting up button handler for pin {pin}")
             # Set pin to be an input pin and set initial value to be pulled low (off)
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
             GPIO.add_event_detect(pin, GPIO.BOTH, callback=lambda _: self.button_callback(i, pin))
