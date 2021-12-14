@@ -34,6 +34,8 @@ sudo usermod -a -G audio dgorissen
 sudo usermod -a -G video dgorissen
 # allow i2c
 sudo usermod -a -G i2c dgorissen
+sudo usermod -a -G gpio dgorissen
+sudo usermod -a -G input dgorissen
 
 # add this to bashrc
 eval $(keychain --noask --eval id_rsa)
@@ -152,3 +154,4 @@ sudo systemctl restart udev
 ~/openvino/build_samples/armv7l/Release/object_detection_sample_ssd -m /home/dgorissen/open_model_zoo/tools/downloader/intel/face-detection-adas-0001/FP16/face-detection-adas-0001.xml -d MYRIAD -i ~/clare/school.jpg
 
 # nmap
+RUN apt-get install -y libinput-tools
