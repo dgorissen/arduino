@@ -131,9 +131,9 @@ class ClareTop(BaseState):
         self._ir_thread.start()
 
         # Setup LED ring
-        self._setup_lights()
-        self._led_thread = Thread(target=self._run_lights, daemon=True)
-        self._led_thread.start()
+        # self._setup_lights()
+        # self._led_thread = Thread(target=self._run_lights, daemon=True)
+        # self._led_thread.start()
 
     def __button_callback(self, idx, pin):
         val = GPIO.input(pin)
@@ -167,7 +167,8 @@ class ClareTop(BaseState):
         assert(0 <= pos_left <= 180)
         assert(0 <= pos_right <= 180)
 
-        self._servokit[0] = pos_left
+        # Make servo's rotate in the same direction (mirror image mount)
+        self._servokit[0] = 180 - pos_left
         self._servokit[1] = pos_right
 
         self._state["pos_left_arm"] = pos_left
@@ -179,7 +180,7 @@ class ClareTop(BaseState):
             GPIO.output(pin, GPIO.LOW)
 
     def set_fan(self, state):
-        val = GPIO.HIGH if bool else GPIO.LOW
+        val = GPIO.HIGH if state else GPIO.LOW
         # Only change the first pin
         pin = self._fan_pins[0]
         GPIO.output(pin, val)
@@ -200,9 +201,11 @@ class ClareTop(BaseState):
             self._state["ir_cmd"] = repr(ev)
 
     def _setup_ir(self):
-        self._ir_dev = InputDevice('/dev/input/event0')
+        self._ir_dev = InputDevice('/dev/input/by-path/platform-ir-receiver@10-event')
         print(self._ir_dev)
-        loop = asyncio.get_running_loop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        # loop = asyncio.get_event_loop()
         loop.run_until_complete(self._ir_callback())
 
     def _setup_lights(self):
