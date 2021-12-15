@@ -168,10 +168,10 @@ class ClareTop(BaseState):
         assert(0 <= pos_right <= 180)
 
         # Make servo's rotate in the same direction (mirror image mount)
-        self._servokit[0] = 180 - pos_left
-        self._servokit[1] = pos_right
+        self._servokit.servo[0].angle = pos_right
+        self._servokit.servo[1].angle = 180 - pos_left
 
-        self._state["pos_left_arm"] = pos_left
+        self._state["pos_left_arm"] = 180 - pos_left
         self._state["pos_right_arm"] = pos_right
 
     def _setup_fan(self):
@@ -180,12 +180,22 @@ class ClareTop(BaseState):
             GPIO.output(pin, GPIO.LOW)
 
     def set_fan(self, state):
+        print("before set fan")
+        for pin in self._fan_pins:
+            v = GPIO.input(pin)
+            print(f"pin {pin} is currently set to {v}")
         val = GPIO.HIGH if state else GPIO.LOW
         # Only change the first pin
         pin = self._fan_pins[0]
         GPIO.output(pin, val)
-
+        print(f"Fan pin {pin} set to {val}")
         self._state["fan"] = state
+
+        time.sleep(1)
+        print("after set fan")
+        for pin in self._fan_pins:
+            v = GPIO.input(pin)
+            print(f"pin {pin} is currently set to {v}")
     
     def read_environmentals(self):
         self._state["temp"] = self._env_sensor.temperature
