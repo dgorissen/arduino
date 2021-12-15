@@ -45,6 +45,7 @@ runpi:
 	-e DISPLAY=${DISPLAY} \
 	-v /dev:/dev \
 	-v /opt/vc:/opt/vc \
+	-v /sys/class/gpio:/sys/class/gpio \
 	-v /run/udev/data:/run/udev/data \
 	--env LD_LIBRARY_PATH=/opt/vc/lib \
 	--name cbrain \
