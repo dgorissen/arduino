@@ -250,6 +250,12 @@ def set_fan(state):
     STATE.top.set_fan(s)
     return "", 200
 
+@app.route("/body/env")
+def read_env():
+    STATE.top.read_environmentals()
+    time.sleep(0.2)
+    return jsonify(STATE.top.get_state()), 200
+
 @app.route("/body/lights/<state>")
 def set_lights(state):
     STATE.top.set_lights(state)
