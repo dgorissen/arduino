@@ -22,7 +22,7 @@ class ButtonMonitor(object):
         self._state_dirty = False
 
         # Create ros node
-        rospy.init_node("clare_top", anonymous=False, disable_signals=True)
+        rospy.init_node("clare_buttons", anonymous=False, disable_signals=False)
         self._button_pub = rospy.Publisher("clare/buttons", KeyValue, queue_size=10)
 
         # Setup Handlers
