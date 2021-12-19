@@ -59,7 +59,7 @@ def init_state():
     rospy.Subscriber("track_status", String, t.status_callback)
 
     m = ClareMiddle()
-    rospy.Subscriber("clare_middle", String, m.status_callback)
+    rospy.Subscriber("/clare/middle", String, m.status_callback)
 
     h = HeadCamera()
     rospy.Subscriber("/clare/head/images", Image, h.status_callback)
