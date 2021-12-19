@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <node name="clare_ir" pkg="clare_ir" type="ir_node.py"/>
+    <node name="clare_buttons" pkg="clare_buttons" type="buttons_node.py"/>
+</launch>
