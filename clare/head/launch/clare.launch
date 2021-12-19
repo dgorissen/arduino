@@ -1,5 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
-    <node name="clare_ir" pkg="clare_ir" type="ir_node.py"/>
+
+    <!-- HEAD =========================================================================== -->
+    <node name="clare_head_camera" pkg="clare_head_camera" type="face_detect_node.py">
+        <param name="model_dir" value="/home/dgorissen/openvino_models/intel/" type="str" />
+        <param name="model_name" value="face-detection-retail-0004" type="str" />
+        <param name="threshold" value="0.9" type="double" />
+        <param name="parallel_requests" value="4" type="int" />
+    </node>
+
+    <node name="clare_respeaker" pkg="respeaker_ros" type="respeaker_node.py"/>
+
+    <node name="clare_respeaker_stt" pkg="respeaker_ros" type="speech_to_text.py">
+        <remap from="/audio" to="/speech_audio"/>
+        <param name="self_cancellation" value="False" type="bool" />
+        <param name="language" value="en-GB" type="str"/>
+    </node>
+
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch"/>
+
+    <!-- BODY MIDDLE ====================================================================== -->
+    <node name="clare_middle" pkg="clare_middle" type="middle_node.py">
+        <param name="port" value="/dev/ttyUSB1"/>
+        <param name="baud" value="115200"/>
+    </node>
+
+    <!-- BODY TOP ========================================================================= -->
+    <node name="clare_ir" pkg="clare_ir" type="ir_node.py"/>    
     <node name="clare_buttons" pkg="clare_buttons" type="buttons_node.py"/>
+    
+    <!-- TRACKS =========================================================================== -->
+    <node pkg="rosserial_python" type="serial_node.py" name="serial_node">
+        <param name="port" value="/dev/ttyUSB0"/>
+        <param name="baud" value="115200"/>
+    </node>
+
 </launch>
