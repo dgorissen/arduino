@@ -37,52 +37,20 @@ sleep 5
 RUN_ID=`rosparam get /run_id`
 ROSOUT_FILE=~/.ros/log/${RUN_ID}/rosout.log
 
-# Connect to tracks
-echo "* Starting rosserial_python for tracks"
-rosrun rosserial_python serial_node.py _baud:=115200 _port:="${tracks_serial}"  2>&1 | tee $LOGS/tracks.txt &
-echo $! > $LOGS/tracks.pid
-sleep 2
-
-# Connect to middle
-echo "* Starting middle node"
-python3 ${CLARE}/../ultrasound/src/clare_middle_node.py --port ${middle_serial} 2>&1 | tee $LOGS/middle.txt &
-echo $! > $LOGS/middle.pid
-sleep 2
-
 # Start web frontend
 echo "* Starting web frontend"
 npm run serve --prefix $CLARE/client > $LOGS/frontend.txt 2>&1 &
 echo $! > $LOGS/frontend.pid
 
-# Start the face detector
-echo "* Starting head camera"
+# Start ROS nodes
+echo "* Starting ROS nodes"
 set +x
 source ~/openvino/bin/setupvars.sh
 source ${CLARE}/../head/install/setup.bash
+source ~/catkin_ws/install/setup.bash
 set -x
-rosrun clare_head_camera face_detect_node.py -d /home/dgorissen/openvino_models/intel/ -p 4 2>&1 | tee $LOGS/backend.txt &
-echo $! > $LOGS/head_camera.pid
-sleep 3
-
-# Start speech recogniser
-echo "* Starting respeaker node"
-set +x
-source ~/catkin_ws/devel/setup.bash
-set -x
-python ~/catkin_ws/src/jsk_3rdparty/respeaker_ros/scripts/respeaker_node.py 2>&1 | tee $LOGS/respeaker.txt &
-echo $! > $LOGS/respeaker.pid
-sleep 3
-
-# Start speech to text
-echo "* Starting speech to text"
-python ~/catkin_ws/src/jsk_3rdparty/respeaker_ros/scripts/speech_to_text.py _self_cancellation:=False _language:=en-GB --ros-args -r audio:=speech_audio | tee $LOGS/speech_to_text.txt &
-echo $! > $LOGS/speech_to_text.pid
-sleep 3
-
-# Start speech to text
-echo "* Starting realsense"
-roslaunch realsense2_camera rs_camera.launch | tee $LOGS/realsense.txt &
-echo $! > $LOGS/realsense.pid
+roslaunch ${CLARE}/../head/launch/clare.launch | tee $LOGS/roslaunch.txt &
+echo $! > $LOGS/roslaunch.pid
 sleep 3
 
 # Start web backend
