@@ -142,21 +142,17 @@ def run_face_detection(model_dir, model_name, threshold, num_infer_requests, ima
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="OpenVINO Face Detection")
-    parser.add_argument("-d", "--model_dir", required=True,
-                        type=str, help="Directory containing downloaded models")
-    parser.add_argument("-m", "--model_name", default="face-detection-retail-0004",
-                        type=str, help="Name of the model to use")
-    parser.add_argument("-t", "--threshold", default=0.9,
-                        type=float, help="Minimum detection threshold")
-    parser.add_argument("-p", "--parallel_requests", default=4,
-                        type=int, help="Number of infer requests to submit in parallel")
-
-    args = parser.parse_args()
-
     # Create ros node
-    rospy.init_node("face_detector", anonymous=False, disable_signals=True)
-    image_pub = rospy.Publisher("images", Image, queue_size=10)
-    face_pub = rospy.Publisher("faces", Detection2DArray, queue_size=10)
+    rospy.init_node("clare_face_detector", anonymous=False, disable_signals=False)
 
-    run_face_detection(args.model_dir, args.model_name, args.threshold, args.parallel_requests, image_pub, face_pub)
+    # Read parameters
+    model_dir = rospy.get_param("~model_dir")
+    model_name = rospy.get_param("~model_name")
+    threshold = rospy.get_param("~threshold")
+    parallel_requests = rospy.get_param("~parallel_requests")
+
+    # Publishers
+    image_pub = rospy.Publisher("clare/head/images", Image, queue_size=10)
+    face_pub = rospy.Publisher("clare/head/faces", Detection2DArray, queue_size=10)
+
+    run_face_detection(model_dir, model_name, threshold, parallel_requests, image_pub, face_pub)
