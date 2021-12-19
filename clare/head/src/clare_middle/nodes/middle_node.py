@@ -1,4 +1,5 @@
-
+#!/usr/bin/env python
+ 
 import rospy
 import serial
 import time
@@ -8,8 +9,6 @@ import argparse
 
 
 def run_node(port, baud):
-    pub = rospy.Publisher('clare_middle', String, queue_size=10)
-    rospy.init_node('clare_middle_node', anonymous=True)
     rate = rospy.Rate(10)  # 10hz
 
     while not rospy.is_shutdown():
@@ -34,14 +33,14 @@ def run_node(port, baud):
 
 
 if __name__ == '__main__':
+    rospy.init_node('clare_middle_node', anonymous=True)
 
-    parser = argparse.ArgumentParser(description='Clare Middle.')
-    parser.add_argument('--port', type=str, help='Serial port', default="/dev/ttyUSB1")
-    parser.add_argument('--baud', type=int, help='Baud rate', default=115200)
+    port = rospy.get_param("~port", "/dev/ttyUSB1")
+    baud = rospy.get_param("~baud", 115200)
 
-    args = parser.parse_args()
+    pub = rospy.Publisher('clare/middle', String, queue_size=10)
 
     try:
-        run_node(args.port, args.baud)
+        run_node(port, baud)
     except rospy.ROSInterruptException as e:
         print(e)
