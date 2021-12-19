@@ -86,5 +86,6 @@ gpu_mem=128
 
 # https://raspberrypi.stackexchange.com/questions/111132/can-i-re-purpose-my-i2c-eeprom-pins-to-act-like-sda-scl-pins
 dtoverlay=i2c-gpio,i2c_gpio_sda=11,i2c_gpio_scl=8,bus=3
-# IR receiver
-dtoverlay=lirc-rpi,gpio_in_pin=16
+
+dtoverlay=gpio-ir,gpio_pin=16
+
