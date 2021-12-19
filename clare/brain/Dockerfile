@@ -183,18 +183,15 @@ RUN mkdir -p ~/catkin_ws/src && cd ~/catkin_ws/src && \
   source /opt/ros/noetic/setup.bash && \
   cd ~/catkin_ws && \
   catkin config --init && \
-  catkin build respeaker_ros
+  catkin build respeaker_ros && \
+  make -C build/respeaker_ros install
 
-USER root
-RUN apt-get install -y ir-keytable
-
-USER dgorissen
 RUN pip install adafruit-extended-bus adafruit-circuitpython-bme680 \
     adafruit-circuitpython-pca9685 adafruit-circuitpython-servokit \
     rpi_ws281x adafruit-circuitpython-neopixel adafruit-blinka evdev
 
 USER root
-RUN apt-get install -y libinput-tools
+RUN apt-get install -y ir-keytable libinput-tools
 # Not pretty but ensure gpio, i2c groups exist and have same GIDs as on the host
 RUN groupadd -g 997 gpio \
     && groupadd -g 999 spi \
