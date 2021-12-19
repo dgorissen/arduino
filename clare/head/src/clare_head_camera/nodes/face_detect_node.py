@@ -143,7 +143,7 @@ def run_face_detection(model_dir, model_name, threshold, num_infer_requests, ima
 
 if __name__ == "__main__":
     # Create ros node
-    rospy.init_node("clare_face_detector", anonymous=False, disable_signals=False)
+    rospy.init_node("clare_head_camera", anonymous=False, disable_signals=False)
 
     # Read parameters
     model_dir = rospy.get_param("~model_dir")
@@ -155,4 +155,7 @@ if __name__ == "__main__":
     image_pub = rospy.Publisher("clare/head/images", Image, queue_size=10)
     face_pub = rospy.Publisher("clare/head/faces", Detection2DArray, queue_size=10)
 
-    run_face_detection(model_dir, model_name, threshold, parallel_requests, image_pub, face_pub)
+    try:
+        run_face_detection(model_dir, model_name, threshold, parallel_requests, image_pub, face_pub)
+    except rospy.ROSInterruptException:
+        pass
