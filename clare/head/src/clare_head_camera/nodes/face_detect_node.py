@@ -106,7 +106,7 @@ def run_face_detection(model_dir, model_name, threshold, num_infer_requests, ima
 
     cap = picam_source()
 
-    while True:
+    while not rospy.is_shutdown():
         if detector_pipeline.callback_exceptions:
             raise detector_pipeline.callback_exceptions[0]
 
