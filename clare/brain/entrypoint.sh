@@ -48,6 +48,9 @@ ROSOUT_FILE=$(roslaunch-logs)/rosout.log
 
 # Start web backend
 echo "* Starting web backend"
+set +x
+source ~/openvino/bin/setupvars.sh
+set -x
 /home/dgorissen/.pyenv/shims/python3 $CLARE/server/app.py 2>&1 | tee $LOGS/backend.txt &
 echo $! > $LOGS/backend.pid
 sleep 2
