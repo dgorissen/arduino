@@ -46,7 +46,7 @@ app.config.from_object(__name__)
 CORS(app, resources={r'/*': {'origins': '*'}})
 
 # Create ros node
-threading.Thread(target=lambda: rospy.init_node('brain_backend', disable_signals=True)).start()
+threading.Thread(target=lambda: rospy.init_node('clare_brain_backend', disable_signals=True)).start()
 
 def init_state():
     global STATE

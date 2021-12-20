@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 # Get clare directory
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
@@ -74,10 +76,11 @@ clean:
 	docker system prune -f
 
 ros_build:
+	# IMPORTANT to first source the respeaker workspace before building the clare one
+	# See http://wiki.ros.org/catkin/Tutorials/workspace_overlaying
+	# https://stackoverflow.com/questions/7507810/how-to-source-a-script-in-a-makefile
 	# the setuptools option because of https://github.com/ros/catkin/issues/863
-	catkin_make -C ${rootdir}/head -DCMAKE_BUILD_TYPE=Release -DSETUPTOOLS_DEB_LAYOUT=OFF
-	cd  ~/catkin_ws && catkin build respeaker_ros && cd -
+	. ~/catkin_ws/install/setup.bash && catkin_make -C ${rootdir}/head -DSETUPTOOLS_DEB_LAYOUT=OFF
 
 ros_install:
 	make -C ${rootdir}/head/build install
-	make -C ~/catkin_ws/build/respeaker_ros install

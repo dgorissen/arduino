@@ -30,7 +30,7 @@
     <node name="clare_buttons" pkg="clare_buttons" type="buttons_node.py"/>
     
     <!-- TRACKS =========================================================================== -->
-    <node pkg="rosserial_python" type="serial_node.py" name="serial_node">
+    <node name="clare_tracks" pkg="rosserial_python" type="serial_node.py">
         <param name="port" value="/dev/ttyUSB0"/>
         <param name="baud" value="115200"/>
     </node>
