@@ -28,6 +28,14 @@
     <!-- BODY TOP ========================================================================= -->
     <node name="clare_ir" pkg="clare_ir" type="ir_node.py"/>    
     <node name="clare_buttons" pkg="clare_buttons" type="buttons_node.py"/>
+    <node name="clare_arms" pkg="clare_arms" type="arms_node.py">
+        <param name="i2c_bus" value="3"/>
+    </node>
+    <node name="clare_fan" pkg="clare_fan" type="fan_node.py"/>
+    <node name="clare_env" pkg="clare_env" type="env_node.py">
+        <param name="i2c_bus" value="3"/>
+    </node>
+    <node name="clare_lightring" pkg="clare_lightring" type="lightring_node.py"/>
     
     <!-- TRACKS =========================================================================== -->
     <node name="clare_tracks" pkg="rosserial_python" type="serial_node.py">

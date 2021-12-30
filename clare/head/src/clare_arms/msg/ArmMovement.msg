@@ -1,0 +1,2 @@
+float32 shoulder_left_angle
+float32 shoulder_right_angle
