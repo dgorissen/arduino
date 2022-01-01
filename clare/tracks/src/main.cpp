@@ -26,9 +26,9 @@ class TeensyHardware5 : public ArduinoHardware {
 
 ros::NodeHandle_<TeensyHardware5>  nh;
 void command_callback(const std_msgs::String& input_msg);
-ros::Subscriber<std_msgs::String> sub("track_cmds", command_callback);
+ros::Subscriber<std_msgs::String> sub("clare/track_cmds", command_callback);
 std_msgs::String track_status_msg;
-ros::Publisher track_status("track_status", &track_status_msg);
+ros::Publisher track_status("clare/track_status", &track_status_msg);
 
 // Where to publish 
 const String pubto = "ros";

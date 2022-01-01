@@ -4,7 +4,7 @@ import subprocess
 import json
 import time
 from flask_cors import CORS
-from clare.state import Tracks, ClareMiddle, HeadCamera, ClareVoice, RealsenseDepth
+from clare.state import Tracks, ClareMiddle, HeadCamera, ClareVoice, RealsenseDepth, ClareTop
 import rospy
 from std_msgs.msg import String
 from functools import wraps
@@ -54,9 +54,9 @@ def init_state():
     if STATE is not None:
         raise Exception("init_state() called on already initialised STATE")
 
-    track_pub = rospy.Publisher("track_cmds", String, queue_size=10)
+    track_pub = rospy.Publisher("/clare/track_cmds", String, queue_size=10)
     t = Tracks(track_pub)
-    rospy.Subscriber("track_status", String, t.status_callback)
+    rospy.Subscriber("/clare/track_status", String, t.status_callback)
 
     m = ClareMiddle()
     rospy.Subscriber("/clare/middle", String, m.status_callback)
@@ -70,8 +70,7 @@ def init_state():
     r = RealsenseDepth()
     rospy.Subscriber("/camera/depth/image_rect_raw/compressed", CompressedImage, r.status_callback)
 
-    # top = ClareTop()
-    top = None
+    top = ClareTop()
 
     cs = ClareState()
     cs.tracks = t
