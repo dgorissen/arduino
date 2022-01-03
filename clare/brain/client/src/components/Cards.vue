@@ -122,6 +122,42 @@
         </b-card>
       </b-col>
     </b-row>
+    <b-row>
+      <b-col l="4">
+        <b-card
+            title="Top"
+            img-src="../assets/img/top.png"
+            img-alt="Image"
+            img-top
+            tag="article"
+            style="max-width: 20rem"
+            class="mb-2"
+          >
+          <b-card-text>Top actions</b-card-text>
+          <p />
+          <b-table stacked :items="[top_state]"></b-table>
+          <p />
+            <div>
+              <label for="left-arm-angle">Left arm: {{ left_arm_angle }}</label>
+              <b-form-input id="left-arm-angle" v-model="left_arm_angle" type="range" min="0" max="180"></b-form-input>
+            </div>
+            <div>
+              <label for="right-arm-angle">Right arm: {{ right_arm_angle }}</label>
+              <b-form-input id="right-arm-angle" v-model="right_arm_angle" type="range" min="0" max="180"></b-form-input>
+            </div>
+            <div>
+              <b-form-select v-model="lightring_val" :options="lightring_vals"></b-form-select>
+            </div>
+          <p />
+          <b-button
+            v-on:click="triggerFan()"
+            variant="primary"
+            >Trigger Fan</b-button
+          >
+          <p />
+        </b-card>
+      </b-col>
+    </b-row>
   </b-container>
 </template>
 
@@ -135,6 +171,7 @@ var api = process.env.VUE_APP_API_LOCATION;
 // EventSources
 var tracksStateStream = null;
 var middleStateStream = null;
+var topStateStream = null;
 var sttStream = null;
 //var headStateStream = null;
 
@@ -166,6 +203,7 @@ function setupEventSource(src, name, handler) {
 function closeEventSources() {
   if (tracksStateStream != null) tracksStateStream.close();
   if (middleStateStream != null) middleStateStream.close();
+  if (topStateStream != null) topStateStream.close();
   if (sttStream != null) sttStream.close();
   //if (headStateStream != null) headStateStream.close();
 }
@@ -178,11 +216,16 @@ export default {
       track_state: {},
       middle_state: {},
       head_state: {},
+      top_state: {},
       photo_ready: true,
       photo_src: "",
       tts_input: "Hello my cute bunny",
       stt_output: "",
       voice_ready: true,
+      left_arm_angle: 0,
+      right_arm_angle: 0,
+      lightring_val: "",
+      lightring_vals: [],
     };
   },
   watch: {
@@ -195,6 +238,24 @@ export default {
         .catch((err) => {
           console.log(err);
         });
+    },
+    lightring_val: function (val) {
+      axios
+        .get(api + "/body/lightring?pat=" + val)
+        .then((response) => {
+          console.log(response);
+        })
+        .catch((err) => {
+          console.log(err);
+        });
+    },
+    left_arm_angle: function (val) {
+      console.log(val);
+      this.moveArms(); 
+    },
+    right_arm_angle: function (val) {
+      console.log(val);
+      this.moveArms(); 
     },
     connected: function (val) {
       if(val) {
@@ -212,8 +273,8 @@ export default {
           shape: 'square',
           dynamicPage: true,
         });
-
-	var that = this;
+        
+        var that = this;
 
         joystick.on('start end', function(evt, data) {
           console.log(data);
@@ -247,7 +308,7 @@ export default {
     },
     controlTracks: _.throttle( (x, y) => {
         console.log(x,y);
-	axios
+        axios
           .get(api + "/tracks/move", {params: {x: x, y:y}})
           .catch((err) => {
             console.log(err);
@@ -282,12 +343,35 @@ export default {
           this.voice_ready = true;
         });
     },
+    triggerFan: function () {
+      axios
+        .get(api + "/body/fan/on")
+        .then((res) => {
+          console.log(res);
+        })
+        .catch((err) => {
+          console.log(err);
+        });
+    },
+    moveArms: function() {
+       axios
+        .get(api + "/body/move_arms?l=" + this.left_arm_angle + "&r=" + this.right_arm_angle)
+        .then((res) => {
+          console.log(res);
+        })
+        .catch((err) => {
+          console.log(err);
+        });
+    },
     connectToStreams: function(){
       tracksStateStream = new EventSource(api + "/tracks/stream");
       setupEventSource(tracksStateStream, "tracks", (data) => this.track_state = data);
 
       middleStateStream = new EventSource(api + "/middle/stream");
       setupEventSource(middleStateStream, "middle", (data) => this.middle_state = data);
+
+      topStateStream = new EventSource(api + "/top/stream");
+      setupEventSource(topStateStream, "top", (data) => this.top_state = data);
 
       sttStream = new EventSource(api + "/voice/stream");
       setupEventSource(sttStream, "voice", (data) => {
@@ -305,6 +389,9 @@ export default {
     },
   },
   mounted() {
+    const vals = ["red", "blue", "green", "rainbow"];
+    this.lightring_vals = vals.map(x => ({value: x, text: x}));
+
     axios
       .get(api + "/")
       .then((response) => {
