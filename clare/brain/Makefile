@@ -84,3 +84,10 @@ ros_build:
 
 ros_install:
 	make -C ${rootdir}/head/build install
+
+tracks_build:
+	make -C ../tracks build
+
+tracks_upload:
+	make -C ../tracks upload
+
