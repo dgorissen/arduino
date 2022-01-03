@@ -263,25 +263,22 @@ def make_stream(msg_name, state_getter):
 def move_arms():
     l = request.args.get('l', default=0, type=int)
     r = request.args.get('r', default=0, type=int)
-    STATE.top.set_arm_pos(l, r)
+    STATE.top.set_arms(l, r)
     return "", 200
 
 @app.route("/body/fan/<state>")
 def set_fan(state):
     s = True if state == "on" else False
-    STATE.top.set_fan(s)
+    d = request.args.get('dur', default=3, type=int)
+    STATE.top.set_fan(s, d)
     return "", 200
 
-@app.route("/body/env")
+@app.route("/body/lightring")
 def read_env():
-    STATE.top.read_environmentals()
-    time.sleep(0.2)
-    return jsonify(STATE.top.get_state()), 200
-
-@app.route("/body/lights/<state>")
-def set_lights(state):
-    STATE.top.set_lights(state)
+    p = request.args.get('pat', default="rainbow", type=str)
+    STATE.top.set_lightring(p)
     return "", 200
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', threaded=True)

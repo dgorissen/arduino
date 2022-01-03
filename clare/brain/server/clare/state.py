@@ -4,6 +4,13 @@ import cv2
 import base64
 import json
 from threading import Thread
+from std_msgs.msg import String
+from diagnostic_msgs.msg import KeyValue
+from clare_arms.msg import ArmMovement
+from clare_fan.msg import FanControl
+from clare_lightring.msg import LightRingMessage
+from clare_env.msg import BME680Message
+import rospy
 
 """
 Simple set of classes to hold a state object for a single time step
@@ -17,6 +24,9 @@ class BaseState:
 
     def get_state_ts(self):
         return self._state["ts"]
+
+    def update_ts_to_now(self):
+        self._state["ts"] = time.time()
 
     def status_callback(self, data):
         raise NotImplementedError;
@@ -87,6 +97,44 @@ class ClareMiddle(BaseState):
 class ClareTop(BaseState):
     def __init__(self):
         super(ClareTop, self).__init__()
+
+        self._arm_pub = rospy.Publisher("/clare/arms", ArmMovement, queue_size=10)
+        self._fan_pub = rospy.Publisher("/clare/fan", FanControl, queue_size=10)
+        self._lightring_pub = rospy.Publisher("/clare/lightring", LightRingMessage, queue_size=10)
+        rospy.Subscriber("/clare/buttons", KeyValue, self.button_cb)
+        rospy.Subscriber("/clare/env", BME680Message, self.env_cb)
+        rospy.Subscriber("/clare/ir", String, self.ir_cb)
+
+    def set_arms(self, left, right):
+        m = ArmMovement()
+        m.shoulder_left_angle = left
+        m.shoulder_right_angle = right
+        self._arm_pub.publish(m)
+
+    def set_fan(self, state, dur):
+        m = FanControl()
+        m.state = state
+        m.duration = dur
+        self._fan_pub.publish(m)
+    
+    def set_lightring(self, pat):
+        m = LightRingMessage()
+        m.pattern = pat
+        self._lightring_pub.publish(m)
+    
+    def env_cb(self, msg):
+        keys = "gas,humidity,pressure,altitude,temp".split(",")
+        for k in keys:
+            self._state[k] = getattr(msg, k)
+        self.update_ts_to_now()
+
+    def ir_cb(self, msg):
+        self._state["ir_cmd"] = msg.data
+        self.update_ts_to_now()
+
+    def button_cb(self, msg):
+        self._state[msg.key] = msg.value
+        self.update_ts_to_now()
 
 
 class ClareVoice(BaseState):
