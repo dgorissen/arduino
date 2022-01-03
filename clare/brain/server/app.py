@@ -74,9 +74,9 @@ def init_state():
     if STATE is not None:
         raise Exception("init_state() called on already initialised STATE")
 
-    track_pub = rospy.Publisher("track_cmds", String, queue_size=10)
+    track_pub = rospy.Publisher("/clare/track_cmds", String, queue_size=10)
     t = Tracks(track_pub)
-    rospy.Subscriber("track_status", String, t.status_callback)
+    rospy.Subscriber("/clare/track_status", String, t.status_callback)
 
     m = ClareMiddle()
     rospy.Subscriber("/clare/middle", String, m.status_callback)

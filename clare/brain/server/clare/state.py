@@ -3,15 +3,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import cv2
 import base64
 import json
-import RPi.GPIO as GPIO
-from adafruit_extended_bus import ExtendedI2C as I2C
-from adafruit_servokit import ServoKit
-import adafruit_bme680
-import asyncio
-from evdev import InputDevice, categorize, ecodes
 from threading import Thread
-import board
-import neopixel
 
 """
 Simple set of classes to hold a state object for a single time step
