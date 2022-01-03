@@ -4,7 +4,7 @@ import subprocess
 import json
 import time
 from flask_cors import CORS
-from clare.state import Tracks, ClareMiddle, HeadCamera, ClareVoice, RealsenseDepth
+from clare.state import Tracks, ClareMiddle, HeadCamera, ClareVoice, RealsenseDepth, ClareTop
 import rospy
 from std_msgs.msg import String
 from functools import wraps
@@ -16,6 +16,8 @@ from speech_recognition_msgs.msg import SpeechRecognitionCandidates
 from sensor_msgs.msg import CompressedImage
 import re
 import threading
+import RPi.GPIO as GPIO
+
 
 class ClareState:
     def __init__(self):
@@ -48,8 +50,26 @@ CORS(app, resources={r'/*': {'origins': '*'}})
 # Create ros node
 threading.Thread(target=lambda: rospy.init_node('clare_brain_backend', disable_signals=True)).start()
 
+# Pin to control the speaker/amp
+MUTE_PIN=40
+
+def mute():
+    GPIO.output(MUTE_PIN, GPIO.LOW)
+
+def unmute():
+    GPIO.output(MUTE_PIN, GPIO.HIGH)
+
 def init_state():
     global STATE
+
+    if GPIO.getmode() is None:
+        GPIO.setwarnings(True)
+        
+        # Use physical pin numbering
+        GPIO.setmode(GPIO.BOARD)
+
+    # Setup the pin we use to control the amp / speaker
+    GPIO.setup(MUTE_PIN, GPIO.OUT)
 
     if STATE is not None:
         raise Exception("init_state() called on already initialised STATE")
@@ -70,8 +90,7 @@ def init_state():
     r = RealsenseDepth()
     rospy.Subscriber("/camera/depth/image_rect_raw/compressed", CompressedImage, r.status_callback)
 
-    # top = ClareTop()
-    top = None
+    top = ClareTop()
 
     cs = ClareState()
     cs.tracks = t
@@ -181,7 +200,9 @@ def speak():
 
     if tts:
         cmd = f"ALSA_CARD=Headphones festival -b '(voice_cmu_us_slt_arctic_hts)' '(SayText \"{tts}\")'"
+        unmute()
         return shell_cmd(cmd)
+        mute()
     else:
         return "", 200
 
