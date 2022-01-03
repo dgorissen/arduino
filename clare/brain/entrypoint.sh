@@ -46,11 +46,16 @@ echo "Roscore running, runid is " ${RUN_ID}
 # Log directory
 ROSOUT_FILE=$(roslaunch-logs)/rosout.log
 
-# Start web backend
-echo "* Starting web backend"
+# Setup environment
+echo "* Setting up environment"
 set +x
 source ~/openvino/bin/setupvars.sh
+source ~/catkin_ws/install/setup.bash
+source ${CLARE}/../head/devel/setup.bash
 set -x
+
+# Start web backend
+echo "* Starting web backend"
 /home/dgorissen/.pyenv/shims/python3 $CLARE/server/app.py 2>&1 | tee $LOGS/backend.txt &
 echo $! > $LOGS/backend.pid
 sleep 2
@@ -63,11 +68,6 @@ sleep 2
 
 # Start ROS nodes
 echo "* Starting ROS nodes"
-set +x
-source ~/openvino/bin/setupvars.sh
-source ~/catkin_ws/install/setup.bash
-source ${CLARE}/../head/devel/setup.bash
-set -x
 roslaunch --wait ${CLARE}/../head/launch/clare.launch
 
 # Execute any other command
