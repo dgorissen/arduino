@@ -1,5 +1,5 @@
-Float32 temp
-Float32 gas
-Float32 humidity
-Float32 pressure
-Float32 altitude
+float32 temp
+float32 gas
+float32 humidity
+float32 pressure
+float32 altitude

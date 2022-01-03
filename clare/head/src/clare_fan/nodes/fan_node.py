@@ -34,7 +34,7 @@ class FanController(object):
         self.set_fan(state)
 
         if dur > 0:
-            t = Timer(self.set_fan, args=not state)
+            t = Timer(dur, self.set_fan, args=(not state,))
             t.start()
 
     def run(self):

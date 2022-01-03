@@ -24,11 +24,11 @@ class EnvMonitor(object):
         m = BME680Message()
 
         while not rospy.is_shutdown():
-            m.temp = self._env_sensor.temperature
-            m.gas = self._env_sensor.gas
-            m = humidity = self._env_sensor.relative_humidity
-            m.pressure = self._env_sensor.pressure
-            m.altitude = self._env_sensor.altitude
+            m.temp = round(self._env_sensor.temperature,2)
+            m.gas = round(self._env_sensor.gas,2)
+            m.humidity = round(self._env_sensor.relative_humidity,2)
+            m.pressure = round(self._env_sensor.pressure,2)
+            m.altitude = round(self._env_sensor.altitude,2)
 
             self._env_pub.publish(m)
             rate.sleep()

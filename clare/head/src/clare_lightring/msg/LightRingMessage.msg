@@ -1,1 +1,1 @@
-String pattern
+string pattern
