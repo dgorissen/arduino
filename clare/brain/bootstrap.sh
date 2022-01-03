@@ -155,3 +155,6 @@ sudo systemctl restart udev
 
 # nmap
 RUN apt-get install -y libinput-tools
+
+# https://www.pjrc.com/teensy/loader_linux.html
+wget -O /etc/udev/rules.d/00-teensy.rules https://www.pjrc.com/teensy/00-teensy.rules

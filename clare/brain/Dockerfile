@@ -203,6 +203,8 @@ RUN groupadd -g 997 gpio \
 
 # Enable passwordless sudo
 RUN echo '%dgorissen ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+# For uploading to teensy
+RUN apt-get install -y teensy-loader-cli
 
 USER dgorissen
 RUN echo -e '\n### \n\
