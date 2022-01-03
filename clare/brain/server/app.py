@@ -6,14 +6,9 @@ import time
 from flask_cors import CORS
 from clare.state import Tracks, ClareMiddle, HeadCamera, ClareVoice, RealsenseDepth, ClareTop
 import rospy
-from std_msgs.msg import String
 from functools import wraps
 import datetime
 from clare.utils import shell_cmd
-from sensor_msgs.msg import Image
-from vision_msgs.msg import Detection2DArray
-from speech_recognition_msgs.msg import SpeechRecognitionCandidates
-from sensor_msgs.msg import CompressedImage
 import re
 import threading
 import RPi.GPIO as GPIO
@@ -68,37 +63,21 @@ def init_state():
         # Use physical pin numbering
         GPIO.setmode(GPIO.BOARD)
 
-    # Setup the pin we use to control the amp / speaker
-    GPIO.setup(MUTE_PIN, GPIO.OUT)
+        # Setup the pin we use to control the amp / speaker
+        GPIO.setup(MUTE_PIN, GPIO.OUT)
+        unmute()
+
 
     if STATE is not None:
         raise Exception("init_state() called on already initialised STATE")
 
-    track_pub = rospy.Publisher("/clare/track_cmds", String, queue_size=10)
-    t = Tracks(track_pub)
-    rospy.Subscriber("/clare/track_status", String, t.status_callback)
-
-    m = ClareMiddle()
-    rospy.Subscriber("/clare/middle", String, m.status_callback)
-
-    h = HeadCamera()
-    rospy.Subscriber("/clare/head/images", Image, h.status_callback)
-
-    v = ClareVoice()
-    rospy.Subscriber("speech_to_text", SpeechRecognitionCandidates, v.status_callback)
-
-    r = RealsenseDepth()
-    rospy.Subscriber("/camera/depth/image_rect_raw/compressed", CompressedImage, r.status_callback)
-
-    top = ClareTop()
-
     cs = ClareState()
-    cs.tracks = t
-    cs.middle = m
-    cs.head = h
-    cs.voice = v
-    cs.realsense = r
-    cs.top = top
+    cs.tracks = Tracks()
+    cs.middle = ClareMiddle()
+    cs.head = HeadCamera()
+    cs.voice = ClareVoice()
+    cs.realsense = RealsenseDepth()
+    cs.top = ClareTop()
 
     STATE = cs
 
@@ -200,9 +179,9 @@ def speak():
 
     if tts:
         cmd = f"ALSA_CARD=Headphones festival -b '(voice_cmu_us_slt_arctic_hts)' '(SayText \"{tts}\")'"
-        unmute()
+        # unmute()
         return shell_cmd(cmd)
-        mute()
+        # mute()
     else:
         return "", 200
 
@@ -281,4 +260,7 @@ def read_env():
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', threaded=True)
+    try:
+        app.run(host='0.0.0.0', threaded=True)
+    finally:
+        GPIO.cleanup()

@@ -3,6 +3,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import cv2
 import base64
 import json
+import rospy
 from threading import Thread
 from std_msgs.msg import String
 from diagnostic_msgs.msg import KeyValue
@@ -10,7 +11,11 @@ from clare_arms.msg import ArmMovement
 from clare_fan.msg import FanControl
 from clare_lightring.msg import LightRingMessage
 from clare_env.msg import BME680Message
-import rospy
+from std_msgs.msg import String
+from sensor_msgs.msg import Image
+from vision_msgs.msg import Detection2DArray
+from speech_recognition_msgs.msg import SpeechRecognitionCandidates
+from sensor_msgs.msg import CompressedImage
 
 """
 Simple set of classes to hold a state object for a single time step
@@ -32,9 +37,10 @@ class BaseState:
         raise NotImplementedError;
 
 class Tracks(BaseState):
-    def __init__(self, pub):
+    def __init__(self):
         super(Tracks, self).__init__()
-        self._pub = pub
+        self._pub = rospy.Publisher("/clare/track_cmds", String, queue_size=10)
+        rospy.Subscriber("/clare/track_status", String, self.status_callback)
 
     def set_headlights(self, state):
         if state:
@@ -66,6 +72,7 @@ class HeadCamera(BaseState):
     def __init__(self):
         super(HeadCamera, self).__init__()
         self._bridge = CvBridge()
+        rospy.Subscriber("/clare/head/images", Image, self.status_callback)
 
     def status_callback(self, data):
 
@@ -87,6 +94,7 @@ class HeadCamera(BaseState):
 class ClareMiddle(BaseState):
     def __init__(self):
         super(ClareMiddle, self).__init__()
+        rospy.Subscriber("/clare/middle", String, self.status_callback)
 
     def status_callback(self, data):
         cur = json.loads(data.data)
@@ -140,6 +148,7 @@ class ClareTop(BaseState):
 class ClareVoice(BaseState):
     def __init__(self):
         super(ClareVoice, self).__init__()
+        rospy.Subscriber("speech_to_text", SpeechRecognitionCandidates, self.status_callback)
 
     def status_callback(self, data):
         cur = {}
@@ -153,6 +162,7 @@ class RealsenseDepth(BaseState):
     def __init__(self):
         super(RealsenseDepth, self).__init__()
         self._bridge = CvBridge()
+        rospy.Subscriber("/camera/depth/image_rect_raw/compressed", CompressedImage, self.status_callback)
 
     def status_callback(self, data):
         # Assumes a compressed depth image
