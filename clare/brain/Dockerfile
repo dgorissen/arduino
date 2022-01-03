@@ -201,10 +201,14 @@ RUN groupadd -g 997 gpio \
     # Needed for access to the IR
     && usermod -a -G systemd-network dgorissen
 
+# Enable passwordless sudo
+RUN echo '%dgorissen ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
 USER dgorissen
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
 source /opt/ros/noetic/setup.bash \n\
+source ~/clare/head/devel/setup.bash \n\
 export POCKETSPHINX_DATA=$HOME/pocketsphinx-data \n\
 ' >> ~/.bashrc
 
