@@ -6,16 +6,13 @@ import time
 from flask_cors import CORS
 from clare.state import Tracks, ClareMiddle, HeadCamera, ClareVoice, RealsenseDepth, ClareTop
 import rospy
-from std_msgs.msg import String
 from functools import wraps
 import datetime
 from clare.utils import shell_cmd
-from sensor_msgs.msg import Image
-from vision_msgs.msg import Detection2DArray
-from speech_recognition_msgs.msg import SpeechRecognitionCandidates
-from sensor_msgs.msg import CompressedImage
 import re
 import threading
+import RPi.GPIO as GPIO
+
 
 class ClareState:
     def __init__(self):
@@ -48,37 +45,39 @@ CORS(app, resources={r'/*': {'origins': '*'}})
 # Create ros node
 threading.Thread(target=lambda: rospy.init_node('clare_brain_backend', disable_signals=True)).start()
 
+# Pin to control the speaker/amp
+MUTE_PIN=40
+
+def mute():
+    GPIO.output(MUTE_PIN, GPIO.LOW)
+
+def unmute():
+    GPIO.output(MUTE_PIN, GPIO.HIGH)
+
 def init_state():
     global STATE
+
+    if GPIO.getmode() is None:
+        GPIO.setwarnings(True)
+        
+        # Use physical pin numbering
+        GPIO.setmode(GPIO.BOARD)
+
+        # Setup the pin we use to control the amp / speaker
+        GPIO.setup(MUTE_PIN, GPIO.OUT)
+        unmute()
+
 
     if STATE is not None:
         raise Exception("init_state() called on already initialised STATE")
 
-    track_pub = rospy.Publisher("/clare/track_cmds", String, queue_size=10)
-    t = Tracks(track_pub)
-    rospy.Subscriber("/clare/track_status", String, t.status_callback)
-
-    m = ClareMiddle()
-    rospy.Subscriber("/clare/middle", String, m.status_callback)
-
-    h = HeadCamera()
-    rospy.Subscriber("/clare/head/images", Image, h.status_callback)
-
-    v = ClareVoice()
-    rospy.Subscriber("speech_to_text", SpeechRecognitionCandidates, v.status_callback)
-
-    r = RealsenseDepth()
-    rospy.Subscriber("/camera/depth/image_rect_raw/compressed", CompressedImage, r.status_callback)
-
-    top = ClareTop()
-
     cs = ClareState()
-    cs.tracks = t
-    cs.middle = m
-    cs.head = h
-    cs.voice = v
-    cs.realsense = r
-    cs.top = top
+    cs.tracks = Tracks()
+    cs.middle = ClareMiddle()
+    cs.head = HeadCamera()
+    cs.voice = ClareVoice()
+    cs.realsense = RealsenseDepth()
+    cs.top = ClareTop()
 
     STATE = cs
 
@@ -180,7 +179,9 @@ def speak():
 
     if tts:
         cmd = f"ALSA_CARD=Headphones festival -b '(voice_cmu_us_slt_arctic_hts)' '(SayText \"{tts}\")'"
+        # unmute()
         return shell_cmd(cmd)
+        # mute()
     else:
         return "", 200
 
@@ -241,25 +242,25 @@ def make_stream(msg_name, state_getter):
 def move_arms():
     l = request.args.get('l', default=0, type=int)
     r = request.args.get('r', default=0, type=int)
-    STATE.top.set_arm_pos(l, r)
+    STATE.top.set_arms(l, r)
     return "", 200
 
 @app.route("/body/fan/<state>")
 def set_fan(state):
     s = True if state == "on" else False
-    STATE.top.set_fan(s)
+    d = request.args.get('dur', default=3, type=int)
+    STATE.top.set_fan(s, d)
     return "", 200
 
-@app.route("/body/env")
+@app.route("/body/lightring")
 def read_env():
-    STATE.top.read_environmentals()
-    time.sleep(0.2)
-    return jsonify(STATE.top.get_state()), 200
-
-@app.route("/body/lights/<state>")
-def set_lights(state):
-    STATE.top.set_lights(state)
+    p = request.args.get('pat', default="rainbow", type=str)
+    STATE.top.set_lightring(p)
     return "", 200
+
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', threaded=True)
+    try:
+        app.run(host='0.0.0.0', threaded=True)
+    finally:
+        GPIO.cleanup()
