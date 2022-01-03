@@ -27,6 +27,6 @@ catkin_package(
 )
 
 catkin_install_python(PROGRAMS
-   nodes/arm_node.py
+   nodes/arms_node.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

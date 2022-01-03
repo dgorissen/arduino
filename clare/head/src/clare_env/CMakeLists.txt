@@ -11,8 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_python_setup()
 
 add_message_files(
-  BME680Message.msg
   FILES
+  BME680Message.msg
 )
 
 generate_messages(

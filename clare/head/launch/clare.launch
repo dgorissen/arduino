@@ -35,7 +35,9 @@
     <node name="clare_env" pkg="clare_env" type="env_node.py">
         <param name="i2c_bus" value="3"/>
     </node>
-    <node name="clare_lightring" pkg="clare_lightring" type="lightring_node.py"/>
+
+    <!-- Must be run as root -->
+    <node name="clare_lightring" pkg="clare_lightring" type="run.sh" launch-prefix="sudo"/>
     
     <!-- TRACKS =========================================================================== -->
     <node name="clare_tracks" pkg="rosserial_python" type="serial_node.py">
