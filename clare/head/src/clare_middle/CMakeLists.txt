@@ -12,6 +12,8 @@ catkin_python_setup()
 
 add_message_files(
    FILES
+   GasMessage.msg
+   UltrasoundMessage.msg
 )
 
 generate_messages(
