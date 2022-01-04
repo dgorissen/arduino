@@ -65,7 +65,7 @@ class LightringController(object):
         if val == "blue":
             self._pixels.fill((0, 0, 255))
             self._pixels.show()
-        elif not val:
+        elif val == "off" or not val:
             self._pixels.fill((0, 0, 0))
         else:
             pass
