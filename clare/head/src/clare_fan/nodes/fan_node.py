@@ -40,6 +40,7 @@ class FanController(object):
     def run(self):
         rospy.logdebug('Fan node ready and listening')
         rospy.spin()
+        GPIO.cleanup()
 
 if __name__ == "__main__":
   

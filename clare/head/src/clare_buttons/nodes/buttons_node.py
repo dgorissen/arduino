@@ -86,8 +86,10 @@ class ButtonMonitor(object):
                         self._button_pub.publish(kv)
                         old_state[k] = v
                 self._state_dirty = False
-            
+
             time.sleep(0.5)
+
+        GPIO.cleanup()
 
 
 if __name__ == "__main__":
