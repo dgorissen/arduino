@@ -121,7 +121,11 @@
           >
           <b-card-text>Top actions</b-card-text>
           <p />
-          <b-table stacked :items="[top_state]"></b-table>
+          <b-button
+            v-on:click="triggerFan()"
+            variant="primary"
+            >Trigger Fan</b-button
+          >
           <p />
             <div>
               <label for="left-arm-angle">Left arm: {{ left_arm_angle }}</label>
@@ -135,11 +139,7 @@
               <b-form-select v-model="lightring_val" :options="lightring_vals"></b-form-select>
             </div>
           <p />
-          <b-button
-            v-on:click="triggerFan()"
-            variant="primary"
-            >Trigger Fan</b-button
-          >
+          <b-table stacked :items="[top_state]"></b-table>
           <p />
         </b-card>
       </b-col>
