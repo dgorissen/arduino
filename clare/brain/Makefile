@@ -91,3 +91,10 @@ tracks_build:
 tracks_upload:
 	make -C ../tracks upload
 
+middle_build:
+	make -C ../head/src/clare_middle build
+
+middle_upload:
+	make -C ../head/src/clare_middle upload
+
+
