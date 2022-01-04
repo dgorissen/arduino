@@ -391,6 +391,7 @@ export default {
   mounted() {
     const vals = ["red", "blue", "green", "rainbow"];
     this.lightring_vals = vals.map(x => ({value: x, text: x}));
+    this.lightring_val = "red";
 
     axios
       .get(api + "/")
