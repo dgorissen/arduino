@@ -65,19 +65,6 @@
             style="max-width: 20rem"
             class="mb-2"
           >
-          <!--b-card-text>Camera actions</b-card-text>
-          <p />
-          <b-button
-            :disabled="!photo_ready"
-            v-on:click="takePhoto()"
-            variant="primary"
-            >Take Photo</b-button
-          >
-          <p />
-          Last Photo:
-          <p />
-          <b-img v-bind:src="photo_src" rounded fluid alt=""></b-img-->
-
           <p />
           Video feed:
           <p />
@@ -121,8 +108,7 @@
           ></b-form-textarea>
         </b-card>
       </b-col>
-    </b-row>
-    <b-row>
+
       <b-col l="4">
         <b-card
             title="Top"
@@ -157,6 +143,7 @@
           <p />
         </b-card>
       </b-col>
+
     </b-row>
   </b-container>
 </template>
@@ -217,8 +204,6 @@ export default {
       middle_state: {},
       head_state: {},
       top_state: {},
-      photo_ready: true,
-      photo_src: "",
       tts_input: "Hello my cute bunny",
       stt_output: "",
       voice_ready: true,
@@ -317,18 +302,6 @@ export default {
     headlightActionStr: function () {
       return this.headlights ? "off" : "on";
     },
-    takePhoto: function () {
-      this.photo_ready = false;
-      axios
-        .get(api + "/make_photo")
-        .then((res) => {
-          this.photo_ready = true;
-          this.photo_src = api + "/photo/" + res.data.name;
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    },
     speak: function () {
       if (!this.tts_input) return;
       this.voice_ready = false;
@@ -389,9 +362,9 @@ export default {
     },
   },
   mounted() {
-    const vals = ["red", "blue", "green", "rainbow"];
+    const vals = ["off", "red", "blue", "green", "rainbow"];
     this.lightring_vals = vals.map(x => ({value: x, text: x}));
-    this.lightring_val = "red";
+    this.lightring_val = "off";
 
     axios
       .get(api + "/")
