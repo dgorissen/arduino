@@ -137,7 +137,7 @@ ISR(TIMER1_COMPA_vect){
   read_gasses();
   
   voltage_msg.data = voltVal;
-  voltage_pub.publish(&voltage_msg)
+  voltage_pub.publish(&voltage_msg);
   
   gas_msg.methane = mqVals[0];
   gas_msg.h2s = mqVals[1];
@@ -157,7 +157,7 @@ void loop() {
     read_ranges();
 
     ultra_msg.left = ranges[0];
-    ultra_msg.front = ranges[1];
+    ultra_msg.middle = ranges[1];
     ultra_msg.right = ranges[2];
     ultra_pub.publish(&ultra_msg);
 
@@ -170,7 +170,7 @@ void loop() {
 
   if(pirVal != prevPirVal){
     pir_msg.data = pirVal > 0;
-    pir_pub.publish(&pir_msg)
+    pir_pub.publish(&pir_msg);
     pirVal = prevPirVal;
   }
 
