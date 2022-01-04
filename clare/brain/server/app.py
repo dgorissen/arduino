@@ -157,20 +157,6 @@ def audio_devices():
 def usb_devices():
     return shell_cmd(["lsusb"])
 
-@app.route("/make_photo")
-def make_photo():
-    basename = "raspistill"
-    suffix = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
-    fn = f"{basename}_{suffix}.jpg"
-
-    log = shell_cmd(f"/opt/vc/bin/raspistill -q 50 -o /tmp/{fn}")
-
-    return jsonify({"name": fn, "output": log})
-
-@app.route("/photo/<fn>")
-def get_photo(fn):
-    return send_file(f"/tmp/{fn}", mimetype='image/jpeg')
-
 @app.route("/voice/speak")
 def speak():
     tts = request.args.get('tts', default="", type=str)
