@@ -193,7 +193,7 @@ def get_stream(source):
     elif source == "middle":
         stream = make_stream("middle", STATE.middle.get_state)
     elif source == "top":
-        stream = make_stream("topp", STATE.top.get_state)
+        stream = make_stream("top", STATE.top.get_state)
     elif source == "voice":
         stream = make_stream("voice", STATE.voice.get_state)
     else:
