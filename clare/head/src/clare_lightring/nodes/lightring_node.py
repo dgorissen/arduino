@@ -39,21 +39,28 @@ class LightringController(object):
 
         self._num_pixels = 24
         self._pixels = neopixel.NeoPixel(board.D18, self._num_pixels)
+        self.turn_off()
         self._led_sub = rospy.Subscriber("clare/lightring", LightRingMessage, self._lightring_callback)
 
     def _lightring_callback(self, msg):
         if msg.pattern == "rainbow":
             self.rainbow_cycle()
+        elif msg.pattern == "off":
+            self.turn_off()
         else:
             self.fill_solid(msg.pattern)
 
-    def rainbow_cycle(self, wait=0.001):
-        for j in range(255):
-            for i in range(self._num_pixels):
-                pixel_index = (i * 256 // self._num_pixels) + j
-                self._pixels[i] = wheel(pixel_index & 255)
-            self._pixels.show()
-            time.sleep(wait)
+    def rainbow_cycle(self, wait=0.001, n=3):
+        for k in range(n):
+            for j in range(255):
+                for i in range(self._num_pixels):
+                    pixel_index = (i * 256 // self._num_pixels) + j
+                    self._pixels[i] = wheel(pixel_index & 255)
+                self._pixels.show()
+                time.sleep(wait)
+
+    def turn_off(self):
+        self._pixels.fill((0, 0, 0))
 
     def fill_solid(self, val):
         if val == "red":
@@ -65,14 +72,13 @@ class LightringController(object):
         if val == "blue":
             self._pixels.fill((0, 0, 255))
             self._pixels.show()
-        elif val == "off" or not val:
-            self._pixels.fill((0, 0, 0))
         else:
-            pass
+            rospy.logwarn(f"Invalid lightring value {val}")
 
     def run(self):
         rospy.logdebug('Lightring node ready and listening')
         rospy.spin()
+        self.turn_off()
 
 if __name__ == "__main__":
   

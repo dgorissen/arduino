@@ -270,6 +270,9 @@ export default {
           that.controlTracks(x,y);
         });
 
+        // Initila lightrring value
+        this.lightring_val = "off";
+
       } else {
         this.closeStreams();
         document.getElementById('vid-feed')
@@ -364,7 +367,6 @@ export default {
   mounted() {
     const vals = ["off", "red", "blue", "green", "rainbow"];
     this.lightring_vals = vals.map(x => ({value: x, text: x}));
-    this.lightring_val = "off";
 
     axios
       .get(api + "/")
