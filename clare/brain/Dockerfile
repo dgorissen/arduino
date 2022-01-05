@@ -204,7 +204,8 @@ RUN groupadd -g 997 gpio \
 # Enable passwordless sudo
 RUN echo '%dgorissen ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 # For uploading to teensy
-RUN apt-get install -y teensy-loader-cli
+RUN apt-get update && apt-get install -y teensy-loader-cli \
+  ros-noetic-rosserial-arduino ros-noetic-rosserial-client libncurses5 arduino arduino-builder
 
 USER dgorissen
 RUN echo -e '\n### \n\

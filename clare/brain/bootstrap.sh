@@ -158,3 +158,7 @@ RUN apt-get install -y libinput-tools
 
 # https://www.pjrc.com/teensy/loader_linux.html
 wget -O /etc/udev/rules.d/00-teensy.rules https://www.pjrc.com/teensy/00-teensy.rules
+
+# https://docs.platformio.org/en/latest//faq.html#platformio-udev-rules
+curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/master/scripts/99-platformio-udev.rules | sudo tee /etc/udev/rules.d/99-platformio-udev.rules
+
