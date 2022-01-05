@@ -41,8 +41,8 @@ class BaseState:
 class Tracks(BaseState):
     def __init__(self):
         super(Tracks, self).__init__()
-        self._joy_pub = rospy.Publisher("/clare/tracks/joystick_input", JoystickInput, queue_size=10)
-        self._headlight_pub = rospy.Publisher("/clare/tracks/headlights", Bool, queue_size=10)
+        self._joy_pub = rospy.Publisher("/clare/tracks/joystick_input", JoystickInput, queue_size=3)
+        self._headlight_pub = rospy.Publisher("/clare/tracks/headlights", Bool, queue_size=3)
         rospy.Subscriber("clare/tracks/motor_speeds", MotorSpeeds, self._motor_cb)
         rospy.Subscriber("clare/tracks/encoders", EncoderMessage, self._encoder_cb)
 
