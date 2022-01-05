@@ -111,7 +111,7 @@ class ClareMiddle(BaseState):
         rospy.Subscriber("/clare/pir", Bool, self._pir_cb)
         rospy.Subscriber("/clare/gas", GasMessage, self._gas_cb)
         rospy.Subscriber("/clare/voltage", Float32, self._volt_cb)
-        rospy.Subscriber("/clare/ultrasound", UltrasoundMessage, self.ultra_cb)
+        rospy.Subscriber("/clare/ultrasound", UltrasoundMessage, self._ultra_cb)
 
     def _pir_cb(self, msg):
         self._state["pir"] = msg
