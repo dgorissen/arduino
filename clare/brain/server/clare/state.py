@@ -67,18 +67,18 @@ class Tracks(BaseState):
         self.update_ts_to_now()
 
     def _motor_cb(self, msg):
-        self._state["motor_left"] = msg.left
-        self._state["motor_right"] = msg.right
+        self._state["motor_left"] = msg.left.data
+        self._state["motor_right"] = msg.right.data
 
-        self._state["motor_left_dir"] = msg.left_direction
-        self._state["motor_right_dir"] = msg.right_direction
+        self._state["motor_left_dir"] = msg.left_direction.data
+        self._state["motor_right_dir"] = msg.right_direction.data
 
-        self._state["mode"] = msg.status
+        self._state["mode"] = msg.status.data
         self.update_ts_to_now()
 
     def _encoder_cb(self, msg):
-        self._state['enc_left'] = msg.left
-        self._state['enc_right'] = msg.right
+        self._state['enc_left'] = msg.left.data
+        self._state['enc_right'] = msg.right.data
         self.update_ts_to_now()
 
 
@@ -118,18 +118,18 @@ class ClareMiddle(BaseState):
         self.update_ts_to_now()
 
     def _gas_cb(self, msg):
-        self._state["methane"] = msg.methane
-        self._state["h2s"] = msg.h2s
+        self._state["methane"] = msg.methane.data
+        self._state["h2s"] = msg.h2s.data
         self.update_ts_to_now()
 
     def _volt_cb(self, msg):
-        self._state["voltage"] = msg
+        self._state["voltage"] = msg.data
         self.update_ts_to_now()
 
     def _ultra_cb(self, msg):
-        self._state["ultra_left"] = msg.left
-        self._state["ultra_right"] = msg.right
-        self._state["ultra_middle"] = msg.middle
+        self._state["ultra_left"] = msg.left.data
+        self._state["ultra_right"] = msg.right.data
+        self._state["ultra_middle"] = msg.middle.data
         self.update_ts_to_now()
 
 class ClareTop(BaseState):
