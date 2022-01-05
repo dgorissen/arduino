@@ -12,6 +12,7 @@ from clare_fan.msg import FanControl
 from clare_lightring.msg import LightRingMessage
 from clare_env.msg import BME680Message
 from clare_middle.msg import GasMessage, UltrasoundMessage
+from clare_tracks.msg import EncoderMessage, JoystickInput, MotorSpeeds
 from std_msgs.msg import String, Bool, Float32
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2DArray
@@ -40,33 +41,45 @@ class BaseState:
 class Tracks(BaseState):
     def __init__(self):
         super(Tracks, self).__init__()
-        self._pub = rospy.Publisher("/clare/track_cmds", String, queue_size=10)
-        rospy.Subscriber("/clare/track_status", String, self.status_callback)
+        self._joy_pub = rospy.Publisher("/clare/tracks/joystick_input", JoystickInput, queue_size=10)
+        self._headlight_pub = rospy.Publisher("/clare/tracks/headlights", Bool, queue_size=10)
+        rospy.Subscriber("clare/tracks/motor_speeds", MotorSpeeds, self._motor_cb)
+        rospy.Subscriber("clare/tracks/encoders", EncoderMessage, self._encoder_cb)
 
     def set_headlights(self, state):
-        if state:
-            msg = "H:1"
-        else:
-            msg = "H:0"
-        
-        self._pub.publish(msg)
+        self._headlight_pub.publish(state)
+
+        self._state["headlights"] = state
+        self.update_ts_to_now()
 
     def get_headlights(self):
-        s = self._state.get("H", "0")
-        return True if s == '1' else False
+        return self._state.get("headlights", "?")
 
     def send_move_command(self, x, y):
-        msg = f"CX:{int(x)},CY:{int(y)},M:A"
+        msg = JoystickInput()
+        msg.header.stamp = rospy.Time.now()
+        msg.x = int(x)
+        msg.y = int(y)
+        self._joy_pub.publish(msg)
 
-        self._pub.publish(msg)
+        self._state["input_x"] = x
+        self._state["input_y"] = y
+        self.update_ts_to_now()
 
-    def status_callback(self, data):
-        cur = { "ts" : time.time() }
-        for item in data.data.split(","):
-            cmd, val = [x.strip() for x in item.split(":")]
-            cur[cmd] = val
+    def _motor_cb(self, msg):
+        self._state["motor_left"] = msg.left
+        self._state["motor_right"] = msg.right
 
-        self._state = cur
+        self._state["motor_left_dir"] = msg.left_direction
+        self._state["motor_right_dir"] = msg.right_direction
+
+        self._state["mode"] = msg.status
+        self.update_ts_to_now()
+
+    def _encoder_cb(self, msg):
+        self._state['enc_left'] = msg.left
+        self._state['enc_right'] = msg.right
+        self.update_ts_to_now()
 
 
 class HeadCamera(BaseState):
