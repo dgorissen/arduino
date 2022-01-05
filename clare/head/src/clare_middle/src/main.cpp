@@ -93,27 +93,6 @@ void read_pir(){
   pirVal = digitalRead(pirPin);
 }
 
-void print_vals(){
-  char s[50];
-  for(int i=0; i < numUltraSensors; ++i){
-    sprintf(s,"U%d %d", i, ranges[i]);
-    Serial.print(s);
-    Serial.print(" ");
-  }
-
-  for(int i=0; i < 2; ++i){
-    sprintf(s,"MQ%d %d", i, mqVals[i]);
-    Serial.print(s);
-    Serial.print(" ");
-  }
-
-  Serial.print("P ");
-  Serial.print(pirVal);
-  Serial.print(" V ");
-  Serial.print(voltVal);
-  Serial.println("");
-}
-
 ISR(TIMER1_COMPA_vect){
   //interrupt commands for TIMER 1
   read_voltage();
