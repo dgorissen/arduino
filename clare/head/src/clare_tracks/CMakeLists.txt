@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(clare_middle)
+project(clare_tracks)
 
 find_package(catkin REQUIRED COMPONENTS
   genmsg
@@ -12,8 +12,9 @@ catkin_python_setup()
 
 add_message_files(
    FILES
-   GasMessage.msg
-   UltrasoundMessage.msg
+   EncoderMessage.msg
+   JoystickInput.msg
+   MotorSpeeds.msg
 )
 
 generate_messages(
@@ -28,6 +29,5 @@ catkin_package(
 )
 
 catkin_install_python(PROGRAMS
-   nodes/middle_node.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
