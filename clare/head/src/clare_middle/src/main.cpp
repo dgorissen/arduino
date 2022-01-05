@@ -1,26 +1,9 @@
 #include <Arduino.h>
-#include <ros.h>
-#include <std_msgs/Bool.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/Empty.h>
-#include <clare_middle/GasMessage.h>
-#include <clare_middle/UltrasoundMessage.h>
 
 // Ref https://www.maxbotix.com/Arduino-Ultrasonic-Sensors-085/
 
 // Baud rate
 const long BAUD = 115200;
-
-ros::NodeHandle nh;
-std_msgs::Bool pir_msg;
-clare_middle::GasMessage gas_msg;
-clare_middle::UltrasoundMessage ultra_msg;
-std_msgs::Float32 voltage_msg;
-
-ros::Publisher pir_pub("clare/pir", &pir_msg);
-ros::Publisher gas_pub("clare/gas", &gas_msg);
-ros::Publisher ultra_pub("clare/ultra", &ultra_msg);
-ros::Publisher voltage_pub("clare/voltage", &voltage_msg);
 
 //--- Pin aliases for convenience
 const int D2 = 2;
@@ -135,19 +118,33 @@ ISR(TIMER1_COMPA_vect){
   //interrupt commands for TIMER 1
   read_voltage();
   read_gasses();
-  
-  voltage_msg.data = voltVal;
-  voltage_pub.publish(&voltage_msg);
-  
-  gas_msg.methane = mqVals[0];
-  gas_msg.h2s = mqVals[1];
-  gas_pub.publish(&gas_msg);
+
+  Serial.print("V=");
+  Serial.print(voltVal);
+
+  Serial.print(" MQ1=");
+  Serial.print(mqVals[0]);
+  Serial.print(" MQ2=");
+  Serial.print(mqVals[1]);
+  Serial.println();
 }
 
 void loop() {
-  bool enableUltras = digitalRead(rangingEnablePin) == HIGH;
+  read_pir();
+
+  if(pirVal != prevPirVal){
+    if(pirVal) {
+      Serial.print("P=1");
+    } else {
+      Serial.print("P=0");
+    }
+    Serial.println();
+    prevPirVal = pirVal;
+  }
+
+  //bool enableUltras = digitalRead(rangingEnablePin) == HIGH;
   // TODO: for testing
-  enableUltras = true;
+  bool enableUltras = true;
 
   if(enableUltras){
     digitalWrite(triggerPin,HIGH);
@@ -156,24 +153,17 @@ void loop() {
 
     read_ranges();
 
-    ultra_msg.left = ranges[0];
-    ultra_msg.middle = ranges[1];
-    ultra_msg.right = ranges[2];
-    ultra_pub.publish(&ultra_msg);
+    Serial.print("U0=");
+    Serial.print(ranges[0]);
+    Serial.print(" U1=");
+    Serial.print(ranges[1]);
+    Serial.print(" U2=");
+    Serial.print(ranges[2]);
+    Serial.println();
 
     delay(150);
   } else {
-    digitalWrite(triggerPin,LOW);    
+    digitalWrite(triggerPin,LOW);
   }
-
-  read_pir();
-
-  if(pirVal != prevPirVal){
-    pir_msg.data = pirVal > 0;
-    pir_pub.publish(&pir_msg);
-    pirVal = prevPirVal;
-  }
-
-  //print_vals();
-  nh.spinOnce();
 }
+
