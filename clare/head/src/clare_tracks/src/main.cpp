@@ -4,7 +4,6 @@
 #include "config.h"
 #include <ArduinoLog.h>
 #include "motor_utils.h"
-#include "state.h"
 #include "utils.h"
 #include <math.h>
 // So we can use a different serial port
@@ -13,9 +12,16 @@
 #include <ros.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/Bool.h>
+#include <std_msgs/Header.h>
+// #include <clare_tracks/EncoderMessage.h>
+// #include <clare_tracks/JoystickInput.h>
+// #include <clare_tracks/MotorSpeeds.h>
 
 // Fwd declarations
 void set_headlights(bool b);
+void command_callback(const clare_tracks::JoystickInput& input_msg);
+void headlight_callback(const std_msgs::Bool& input_msg);
 
 // ROS variables
 // Wrapper class so we can use a custom serial port
@@ -24,28 +30,31 @@ class TeensyHardware5 : public ArduinoHardware {
   TeensyHardware5():ArduinoHardware(&Serial5, BAUD){};
 };
 
-ros::NodeHandle_<TeensyHardware5>  nh;
-void command_callback(const std_msgs::String& input_msg);
-ros::Subscriber<std_msgs::String> sub("clare/track_cmds", command_callback);
-std_msgs::String track_status_msg;
-ros::Publisher track_status("clare/track_status", &track_status_msg);
+ros::NodeHandle_<TeensyHardware5> nh;
+ros::Subscriber<clare_tracks::JoystickInput> joystick_sub("clare/tracks/joystick_input", command_callback);
+ros::Subscriber<std_msgs::Bool> headlight_sub("clare/tracks/headlights", headlight_callback);
+
+clare_tracks::EncoderMessage encoder_msg;
+clare_tracks::MotorSpeeds motor_msg;
+
+ros::Publisher encoder_pub("clare/tracks/encoders", &encoder_msg);
+ros::Publisher motor_pub("clare/tracks/motor_speeds", &motor_msg);
 
 // Where to publish 
 const String pubto = "ros";
 //const String pubto = "serial"
 
 // State
-State state_out;
-State state_in;
-
-// Last time we received an input state
-long last_in_state_ts = -999;
+clare_tracks::JoystickInput cur_input_cmd;
+clare_tracks::JoystickInput last_input_cmd;
+long last_command_ts = -999;
 
 // Motor variables
 Encoder encA(motor_encA1, motor_encA2);
 Encoder encB(motor_encB1, motor_encB2);
 long encA_pos = -999;
 long encB_pos = -999;
+long motors_moved = false;
 MotorDir directionL;
 MotorDir directionR;
 
@@ -57,29 +66,40 @@ uint16_t rc_input[16];
 bool rc_failSafe;
 bool rc_lostFrame;
 
-void command_callback(const std_msgs::String& input_msg){
-	Log.verbose("Received command from brain: '%s'\n", input_msg);
-	bool res = State::parseState(input_msg.data, state_in);
+void command_callback(const clare_tracks::JoystickInput& input_msg){
+	Log.verbose("Received command");
+	cur_input_cmd = input_msg;
+	last_command_ts = millis();
+}
 
-	if(!res) {
-		Log.error("Invalid command, failed to parse, ignored\n");
-		state_in.reset();
+void headlight_callback(const std_msgs::Bool& input_msg){
+	Log.verbose("Received headlight command: '%s'\n", input_msg);
+	set_headlights(input_msg.data);
+}
+
+void publish_motor_state(const int vL, const int vR, const Mode m) {
+	motor_msg.left = vL;
+	motor_msg.right = vR;
+
+	if(m == RC_CONTROL) {
+		motor_msg.status = "RC_CONTROL";
+	} else if(m == AUTONOMOUS) {
+		motor_msg.status = "AUTONOMOUS";
 	} else {
-		Log.verbose("Successfully parsed command message\n");
+		motor_msg.status = "UNK";
 	}
+
+	motor_pub.publish(&motor_msg);
 }
 
 void setup_ros() {
   nh.initNode();
-  nh.advertise(track_status);
-  nh.subscribe(sub);
+  nh.advertise(encoder_pub);
+  nh.advertise(motor_pub);
+  nh.subscribe(headlight_sub);
+  nh.subscribe(joystick_sub);
   //while(!nh.connected()) nh.spinOnce();
   //nh.loginfo("Startup complete");
-}
-
-void publish_ros(const String s) {
-  track_status_msg.data = s.c_str();
-  track_status.publish(&track_status_msg);
 }
 
 void setup_motors(){
@@ -108,7 +128,7 @@ void setup_logging(){
 // Publish a message to the outside world
 void publish(const String s){
 	if(pubto == "ros"){
-		publish_ros(s);
+		nh.loginfo(s.c_str());
 	} else {
 		Serial5.println(s);
 	}
@@ -291,24 +311,26 @@ void set_motor_speeds(const int chA, const int chB, int &vL, int &vR, const bool
 	set_speed(vL, vR);
 }
 
-void auto_mode(const bool new_input){
-  Log.trace("Doing one auto mode iteration");
-  // Do we have a valid command
-  const long cur_state_ts = state_in.getTimestamp();
+void trigger_failsafe(){
+	// Stop motors
+	set_speed(0, 0);
+	// Update the state
+	publish_motor_state(0, 0, FAILSAFE);
+	// Give some time to stop
+	delay(2000);
+}
 
-  if(cur_state_ts < 0) {
-	  // We havent received any valid commands, nothing to do
-	  return;
-  }
-
-  // Ok, we have a valid command. Is it an old or a new one
+void software_mode(const bool new_input){
+  Log.trace("Doing one software mode iteration");
+  
+  // Ok, we have received at least one valid command. Is it an old or a new one
 
   if(new_input) {
 	// Yep, its new, do it
 
 	// Read the values for each channel
-	const int chx = state_in.getCmdX();
-	const int chy = state_in.getCmdY();
+	const int chx = cur_input_cmd.x;
+	const int chy = cur_input_cmd.y;
 	Log.notice("received CmdX, CmdY as: %d, %d\n", chx, chy);
 
 	// Scale from [-100, 100] to [-1, 1]
@@ -317,14 +339,10 @@ void auto_mode(const bool new_input){
 	set_motor_speeds(chx / 100.0, chy / 100.0, vL, vR, false);
 
 	// Update the state
-	state_out.setMode(AUTONOMOUS);
-	state_out.setMotors(vL, vR);
-	state_out.setCmdX(chx);
-	state_out.setCmdY(chy);
-
+	publish_motor_state(vL, vR, AUTONOMOUS);
   } else {
 	  // Nope, its a command from a previous iteration, how long ago?
-	  const long delta = millis() - cur_state_ts;
+	  const long delta = millis() - last_command_ts;
 	  
 	  if (delta < auto_timeout_sec * 1000) {
 		// Ok, its pretty recent, leave things as is
@@ -332,13 +350,9 @@ void auto_mode(const bool new_input){
 		// Its been a long time since we heard anything, not good
 		// Enter failsafe mode and come to a stop
 		Log.warning("AUTO TIMEOUT EXCEEDED (%l ms > %d s), FAILSAFE TRIGGERED\n", delta, auto_timeout_sec);
-		// Stop motors
-		set_speed(0, 0);
-		// Update the state
-		state_out.setMotors(0, 0);
-		state_out.setMode(FAILSAFE);
-		// Give some time to stop
-		delay(2000);
+		trigger_failsafe();
+		// Reset timer
+		last_command_ts = -999;
 	  }	  
   }
 }
@@ -348,13 +362,7 @@ void rc_mode(){
   if (x8r.Read()) {
     if(x8r.failsafe()) {
 		Log.warning("FAILSAFE TRIGGERED\n");
-		// Stop motors
-		set_speed(0, 0);
-		// Update the state
-		state_out.setMotors(0, 0);
-		state_out.setMode(FAILSAFE);
-		// Give some time
-		delay(100);
+		trigger_failsafe();
 	} else {
 		// Read the values for each channel
 		const int ch1 = x8r.rx_channels()[0];
@@ -367,10 +375,8 @@ void rc_mode(){
 		int vL = -999;
 		int vR = -999;
 		set_motor_speeds(ch4, ch1, vL, vR);
-
-		// Update the state
-		state_out.setMode(RC_CONTROL);
-		state_out.setMotors(vL, vR);
+		// Publish state
+		publish_motor_state(vL, vR, RC_CONTROL)
 	}
   } else {
 	  Log.trace("Failed to read a good RC packet");
@@ -384,34 +390,36 @@ void read_encoders() {
 
   if(newA != encA_pos){
 	  encA_pos = newA;
+	  motors_moved = true;
   }
 
   if(newB != encB_pos){
 	  encB_pos = newB;
+	  motors_moved = true;
   }
 }
 
 void act_upon_commands() {
+	
+	// TODO: update to only listen to cmds / go to auto mode if TX or button allows it
+
+	// Assume that if we once ever received a command we are in auto/sw controlled mode
+	const bool sw_mode = last_command_ts > 0;
+
 	// Did we receive any (new) instructions?
-	const bool new_input = (last_in_state_ts != state_in.getTimestamp());
+	const bool new_input = (last_input_cmd.header.stamp < cur_input_cmd.header.stamp);
 
-	if (new_input) {	
+	if (new_input) {
 		// Yes we did!
-		Log.trace("Received an input state: %s", state_in.serialise().c_str());
-		// Update the previous state ts
-		last_in_state_ts = state_in.getTimestamp();
+		Log.trace("Received an input command");
+		
+		// Update the previous command
+		last_input_cmd = cur_input_cmd;
 	}
-
-	// Send motor commands
-
-	if(state_in.getMode() == AUTONOMOUS) {
-		// Follow externally given commands
-		// This sets the mode and motor state_out fields internally
-		auto_mode(new_input);
-	} else if(state_in.getMode() == RC_CONTROL) {
-		// Follow RC commands
-		// This sets the mode and motor state_out fields internally
-		rc_mode();
+	
+	if (sw_mode) {	
+		// sw controlled mode
+		software_mode(new_input);
 	} else {
 		// Default to RC
 		rc_mode();
@@ -419,46 +427,24 @@ void act_upon_commands() {
 
 	// Give some time for the motors
 	delay(50);
-
-	if(new_input) {
-		// New state was passed, take any actions based on it
-
-		// set the headlights
-		if(state_in.getHeadlights() == HL_ON) {
-			set_headlights(true);
-		} else if(state_in.getHeadlights() == HL_OFF) {
-			set_headlights(false);
-		} else {
-			// not set, nothing to do
-		}
-	} else {
-		// Working off previous state, nothing new
-	}
 }
 
 void loop() {
 	// Act upon any input state we received or had
 	act_upon_commands();	
 	
-	// Set and publish the output state
+	// Publish encoders only if they changed
 	read_encoders();
-	state_out.setEncoders(encA_pos, encB_pos);
-	state_out.setHeadlights(read_headlights());
-
-	// To avoid spamming, only publish if something changed
-	if(state_out.isModified()) {
-		state_out.setCurTimestamp();
-		const String s = state_out.serialise();
-		publish(s);
-		Log.trace("Published state: %s\n", s.c_str());
-		state_out.clearStatus();
-	} else {
-		const String s = state_out.serialise();
-		Log.trace("State not changed/published: %s\n", s.c_str());
+	if(motors_moved) {
+		encoder_msg.left = encA_pos;
+		encoder_msg.right = encB_pos;
+		encoder_pub.publish(&encoder_msg);
+		motors_moved = false;
 	}
 
 	// Add a short delay
 	delay(3);
+
 	// Keep rosserial synced and process incomming msgs
 	nh.spinOnce();
 }

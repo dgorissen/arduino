@@ -4,14 +4,15 @@
 			"path": "brain"
 		},
 		{
-			"path": "tracks"
-		},
-		{
 			"path": "head"
 		},
 		{
 			"name": "clare_middle",
 			"path": "head/src/clare_middle"
+		},
+		{
+			"name": "clare_tracks",
+			"path": "head/src/clare_tracks"
 		}
 	],
 	"settings": {
