@@ -40,10 +40,6 @@ clare_tracks::MotorSpeeds motor_msg;
 ros::Publisher encoder_pub("clare/tracks/encoders", &encoder_msg);
 ros::Publisher motor_pub("clare/tracks/motor_speeds", &motor_msg);
 
-// Where to publish 
-const String pubto = "ros";
-//const String pubto = "serial"
-
 // State
 clare_tracks::JoystickInput cur_input_cmd;
 clare_tracks::JoystickInput last_input_cmd;
@@ -158,23 +154,6 @@ void setup_logging(){
     //Log.begin(LOG_LEVEL_VERBOSE, &Serial);
 }
 
-// Publish a message to the outside world
-void publish(const String s){
-	if(pubto == "ros"){
-		nh.loginfo(s.c_str());
-	} else {
-		Serial5.println(s);
-	}
-}
-
-void setup_publish(){
-	if(pubto == "ros"){
-		setup_ros();
-	} else {
-		Serial5.begin(BAUD);
-	}
-}
-
 bool read_headlights(){
 	return digitalRead(headlights) == HIGH;
 }
@@ -194,7 +173,7 @@ void setup_headlights() {
 
 void setup() {
 	setup_logging();
-	setup_publish();
+	setup_ros();
 	setup_motors();
 	setup_rc();
 	setup_headlights();
@@ -480,8 +459,8 @@ void loop() {
 	// Publish encoders only if they changed
 	read_encoders();
 	if(motors_moved) {
-		encoder_msg.left = encA_pos;
-		encoder_msg.right = encB_pos;
+		encoder_msg.right = encA_pos;
+		encoder_msg.left = encB_pos;
 		encoder_pub.publish(&encoder_msg);
 		motors_moved = false;
 	}
