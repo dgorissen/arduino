@@ -23,7 +23,7 @@ def run_node(port, baud):
                         if k == "V":
                             volt_pub.publish(float(v))
                         elif k == "P":
-                            pir_pub.publish(bool(v))
+                            pir_pub.publish(v == "1")
                         elif k == "G":
                             a, b = [float(x) for x in v.split(",")]
                             msg = GasMessage()
@@ -31,11 +31,11 @@ def run_node(port, baud):
                             msg.h2s = b
                             gas_pub.publish(msg)
                         elif k == "U":
-                            a, b, c = [float(x) for x in v.split(",")]
+                            a, b, c = [int(x) for x in v.split(",")]
                             msg = UltrasoundMessage()
-                            msg.left = a;
+                            msg.left = c;
                             msg.right = b;
-                            msg.middle = c;
+                            msg.middle = a;
                             ultra_pub.publish(msg)
                         else:
                             raise Exception(f"Unknown entry {k}:{v}")
