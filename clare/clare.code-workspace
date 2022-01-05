@@ -7,11 +7,11 @@
 			"path": "tracks"
 		},
 		{
-			"name": "ultrasound",
-			"path": "ultrasound"
+			"path": "head"
 		},
 		{
-			"path": "head"
+			"name": "clare_middle",
+			"path": "head/src/clare_middle"
 		}
 	],
 	"settings": {
