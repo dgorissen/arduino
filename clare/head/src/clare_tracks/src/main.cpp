@@ -58,6 +58,9 @@ long encB_pos = -999;
 long motors_moved = false;
 MotorDir directionL;
 MotorDir directionR;
+int prev_vL = -999;
+int prev_vR = -999;
+Mode prev_mode = UNKNOWN;
 
 // Sbus object on hardware serial port
 SbusRx x8r(&Serial1);
@@ -79,8 +82,24 @@ void headlight_callback(const std_msgs::Bool& input_msg){
 }
 
 void publish_motor_state(const int vL, const int vR, const Mode m) {
+	if((vL == prev_vL) && (vR == prev_vR) && (prev_mode == m)) {
+		return;
+	}
+
 	motor_msg.left = vL;
 	motor_msg.right = vR;
+
+	if(directionL == fwd) {
+		motor_msg.left_direction ='f';
+	} else {
+		motor_msg.left_direction ='r';
+	}
+
+	if(directionR == fwd) {
+		motor_msg.right_direction ='f';
+	} else {
+		motor_msg.right_direction ='r';
+	}
 
 	if(m == RC_CONTROL) {
 		motor_msg.status = "RC_CONTROL";
@@ -93,6 +112,10 @@ void publish_motor_state(const int vL, const int vR, const Mode m) {
 	}
 
 	motor_pub.publish(&motor_msg);
+
+	prev_vL = vL;
+	prev_vR = vR;
+	prev_mode = m;
 }
 
 void setup_ros() {
