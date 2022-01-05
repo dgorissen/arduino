@@ -48,6 +48,7 @@ const String pubto = "ros";
 clare_tracks::JoystickInput cur_input_cmd;
 clare_tracks::JoystickInput last_input_cmd;
 long last_command_ts = -999;
+int mode_switch_val = -999;
 
 // Motor variables
 Encoder encA(motor_encA1, motor_encA2);
@@ -121,6 +122,13 @@ void setup_logging(){
 	//while(!Serial && !Serial.available()){}
 
 	// Available levels are:
+	// * 0 - LOG_LEVEL_SILENT     no output 
+	// * 1 - LOG_LEVEL_FATAL      fatal errors 
+	// * 2 - LOG_LEVEL_ERROR      all errors  
+	// * 3 - LOG_LEVEL_WARNING    errors, and warnings 
+	// * 4 - LOG_LEVEL_NOTICE     errors, warnings and notices 
+	// * 5 - LOG_LEVEL_TRACE      errors, warnings, notices & traces 
+	// * 6 - LOG_LEVEL_VERBOSE    all 
     // LOG_LEVEL_SILENT, LOG_LEVEL_FATAL, LOG_LEVEL_ERROR, LOG_LEVEL_WARNING,
 	// LOG_LEVEL_NOTICE, LOG_LEVEL_TRACE, LOG_LEVEL_VERBOSE
     Log.begin(LOG_LEVEL_NOTICE, &Serial);
@@ -359,6 +367,12 @@ void software_mode(const bool new_input){
   }
 }
 
+// If the TX switch SE is set to high then we are in manual mode
+// no sw commands allowed
+bool manual_override(){
+	return mode_switch_val > 1700;
+}
+
 void rc_mode(){
   // look for a good SBUS packet from the receiver
   if (x8r.Read()) {
@@ -373,6 +387,8 @@ void rc_mode(){
 		const int ch4 = x8r.rx_channels()[3];
 		const int ch5 = x8r.rx_channels()[4];
 		Log.notice("Received RC input: %d, %d, %d, %d, %d\n", ch1, ch2, ch3, ch4, ch5);
+
+		mode_switch_val = ch5;
 
 		int vL = -999;
 		int vR = -999;
@@ -403,8 +419,6 @@ void read_encoders() {
 
 void act_upon_commands() {
 	
-	// TODO: update to only listen to cmds / go to auto mode if TX or button allows it
-
 	// Assume that if we once ever received a command we are in auto/sw controlled mode
 	const bool sw_mode = last_command_ts > 0;
 
@@ -419,9 +433,14 @@ void act_upon_commands() {
 		last_input_cmd = cur_input_cmd;
 	}
 	
-	if (sw_mode) {	
-		// sw controlled mode
-		software_mode(new_input);
+	if (sw_mode) {
+		if(manual_override()) {
+			Log.trace("Manual override engaged");
+			rc_mode();
+		} else {
+			// sw controlled mode
+			software_mode(new_input);
+		}
 	} else {
 		// Default to RC
 		rc_mode();
