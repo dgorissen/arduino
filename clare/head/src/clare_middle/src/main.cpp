@@ -122,9 +122,9 @@ ISR(TIMER1_COMPA_vect){
   Serial.print("V=");
   Serial.print(voltVal);
 
-  Serial.print(" MQ1=");
+  Serial.print(" G=");
   Serial.print(mqVals[0]);
-  Serial.print(" MQ2=");
+  Serial.print(",");
   Serial.print(mqVals[1]);
   Serial.println();
 }
@@ -153,11 +153,11 @@ void loop() {
 
     read_ranges();
 
-    Serial.print("U0=");
+    Serial.print("U=");
     Serial.print(ranges[0]);
-    Serial.print(" U1=");
+    Serial.print(",");
     Serial.print(ranges[1]);
-    Serial.print(" U2=");
+    Serial.print(",");
     Serial.print(ranges[2]);
     Serial.println();
 

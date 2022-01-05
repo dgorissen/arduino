@@ -4,13 +4,12 @@ import rospy
 import serial
 import time
 import json
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool, Float32
+from clare_middle.msg import GasMessage, UltrasoundMessage
 import argparse
 
 
 def run_node(port, baud):
-    rate = rospy.Rate(10)  # 10hz
-
     while not rospy.is_shutdown():
         with serial.Serial(port=port, baudrate=baud, timeout=2) as ser:
             time.sleep(2)
@@ -18,13 +17,28 @@ def run_node(port, baud):
             while not rospy.is_shutdown() and ser.isOpen():
                 try:
                     line = ser.readline().decode('utf-8')
-                    items = line.split()
-                    d = dict(zip(items[0::2], [float(x) for x in items[1::2]]))
+                    items = [x.split("=") for x in line.split()]
 
-                    # TODO: should be custon message
-                    js = json.dumps(d)
-                    pub.publish(js)
-                    rate.sleep()
+                    for k, v in items:
+                        if k == "V":
+                            volt_pub.publish(float(v))
+                        elif k == "P":
+                            pir_pub.publish(bool(v))
+                        elif k == "G":
+                            a, b = [float(x) for x in v.split(",")]
+                            msg = GasMessage()
+                            msg.methane = a;
+                            msg.h2s = b
+                            gas_pub.publish(msg)
+                        elif k == "U":
+                            a, b, c = [float(x) for x in v.split(",")]
+                            msg = UltrasoundMessage()
+                            msg.left = a;
+                            msg.right = b;
+                            msg.middle = c;
+                            ultra_pub.publish(msg)
+                        else:
+                            raise Exception(f"Unknown entry {k}:{v}")
                 except ValueError as e:
                     msg = f"Error parsing line '{line}'"
                     rospy.logwarn(msg)
@@ -36,7 +50,10 @@ if __name__ == '__main__':
     port = rospy.get_param("~port")
     baud = rospy.get_param("~baud", 115200)
 
-    pub = rospy.Publisher('clare/middle', String, queue_size=10)
+    pir_pub = rospy.Publisher('clare/pir', Bool, queue_size=10)
+    gas_pub = rospy.Publisher('clare/gas', GasMessage, queue_size=10)
+    volt_pub = rospy.Publisher('clare/voltage', Float32, queue_size=10)
+    ultra_pub = rospy.Publisher('clare/ultrasound', UltrasoundMessage, queue_size=10)
 
     try:
         run_node(port, baud)
