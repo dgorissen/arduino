@@ -11,7 +11,8 @@ from clare_arms.msg import ArmMovement
 from clare_fan.msg import FanControl
 from clare_lightring.msg import LightRingMessage
 from clare_env.msg import BME680Message
-from std_msgs.msg import String
+from clare_middle.msg import GasMessage, UltrasoundMessage
+from std_msgs.msg import String, Bool, Float32
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2DArray
 from speech_recognition_msgs.msg import SpeechRecognitionCandidates
@@ -94,13 +95,29 @@ class HeadCamera(BaseState):
 class ClareMiddle(BaseState):
     def __init__(self):
         super(ClareMiddle, self).__init__()
-        rospy.Subscriber("/clare/middle", String, self.status_callback)
+        rospy.Subscriber("/clare/pir", Bool, self._pir_cb)
+        rospy.Subscriber("/clare/gas", GasMessage, self._gas_cb)
+        rospy.Subscriber("/clare/voltage", Float32, self._volt_cb)
+        rospy.Subscriber("/clare/ultrasound", UltrasoundMessage, self.ultra_cb)
 
-    def status_callback(self, data):
-        cur = json.loads(data.data)
-        cur["ts"] = time.time()
-        self._state = cur
+    def _pir_cb(self, msg):
+        self._state["pir"] = msg
+        self.update_ts_to_now()
 
+    def _gas_cb(self, msg):
+        self._state["methane"] = msg.methane
+        self._state["h2s"] = msg.h2s
+        self.update_ts_to_now()
+
+    def _volt_cb(self, msg):
+        self._state["voltage"] = msg
+        self.update_ts_to_now()
+
+    def _ultra_cb(self, msg):
+        self._state["ultra_left"] = msg.left
+        self._state["ultra_right"] = msg.right
+        self._state["ultra_middle"] = msg.middle
+        self.update_ts_to_now()
 
 class ClareTop(BaseState):
     def __init__(self):
