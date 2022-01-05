@@ -14,9 +14,9 @@
 #include <std_msgs/Empty.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Header.h>
-// #include <clare_tracks/EncoderMessage.h>
-// #include <clare_tracks/JoystickInput.h>
-// #include <clare_tracks/MotorSpeeds.h>
+#include <clare_tracks/EncoderMessage.h>
+#include <clare_tracks/JoystickInput.h>
+#include <clare_tracks/MotorSpeeds.h>
 
 // Fwd declarations
 void set_headlights(bool b);
@@ -83,10 +83,12 @@ void publish_motor_state(const int vL, const int vR, const Mode m) {
 
 	if(m == RC_CONTROL) {
 		motor_msg.status = "RC_CONTROL";
-	} else if(m == AUTONOMOUS) {
-		motor_msg.status = "AUTONOMOUS";
+	} else if(m == SW_CONTROL) {
+		motor_msg.status = "SW_CONTROL";
+	} else if(m == FAILSAFE) {
+		motor_msg.status = "FAILSAFE";
 	} else {
-		motor_msg.status = "UNK";
+		motor_msg.status = "UNKNOWN";
 	}
 
 	motor_pub.publish(&motor_msg);
@@ -339,7 +341,7 @@ void software_mode(const bool new_input){
 	set_motor_speeds(chx / 100.0, chy / 100.0, vL, vR, false);
 
 	// Update the state
-	publish_motor_state(vL, vR, AUTONOMOUS);
+	publish_motor_state(vL, vR, SW_CONTROL);
   } else {
 	  // Nope, its a command from a previous iteration, how long ago?
 	  const long delta = millis() - last_command_ts;
@@ -376,7 +378,7 @@ void rc_mode(){
 		int vR = -999;
 		set_motor_speeds(ch4, ch1, vL, vR);
 		// Publish state
-		publish_motor_state(vL, vR, RC_CONTROL)
+		publish_motor_state(vL, vR, RC_CONTROL);
 	}
   } else {
 	  Log.trace("Failed to read a good RC packet");
@@ -407,7 +409,7 @@ void act_upon_commands() {
 	const bool sw_mode = last_command_ts > 0;
 
 	// Did we receive any (new) instructions?
-	const bool new_input = (last_input_cmd.header.stamp < cur_input_cmd.header.stamp);
+	const bool new_input = (last_input_cmd.header.stamp.toSec() < cur_input_cmd.header.stamp.toSec());
 
 	if (new_input) {
 		// Yes we did!

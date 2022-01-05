@@ -1,6 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+enum Mode {UNKNOWN=-1, RC_CONTROL=1, SW_CONTROL=2, FAILSAFE=3};
+
 const long BAUD = 115200;
 const double EPS = 0.001;
  
