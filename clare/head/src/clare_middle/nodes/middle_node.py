@@ -38,7 +38,7 @@ def run_node(port, baud):
                             msg.middle = a;
                             ultra_pub.publish(msg)
                         else:
-                            raise Exception(f"Unknown entry {k}:{v}")
+                            rospy.WARN(f"Ignoring unknown entry '{k}':'{v}'")
                 except ValueError as e:
                     msg = f"Error parsing line '{line}'"
                     rospy.logwarn(msg)
