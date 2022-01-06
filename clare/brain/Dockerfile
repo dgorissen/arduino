@@ -222,4 +222,6 @@ EXPOSE 5000
 EXPOSE 8080
 EXPOSE 11311
 
-CMD ["/home/dgorissen/clare/brain/entrypoint.sh"]
+ENTRYPOINT ["/home/dgorissen/clare/brain/entrypoint.sh"]
+# https://stackoverflow.com/questions/53543881/docker-run-pass-arguments-to-entrypoint
+CMD [""]
