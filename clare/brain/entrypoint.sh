@@ -1,5 +1,4 @@
 #!/bin/bash
-# service ssh start
 
 set -x
 
@@ -17,11 +16,23 @@ middle_usb=/dev/ttyUSB4
 mkdir -p $LOGS
 rm -rf $LOGS/*
 
+run_mode=$1
+
 echo
 echo "* Current directory: " $(pwd)
 echo "* Local IP detected as ${LOCAL_IP}"
 echo "* Logs directory set to ${LOGS}"
+echo "* Run mode argument passed:" $run_mode
 echo
+
+# Setup environment
+echo "* Setting up environment"
+set +x
+source ~/openvino/bin/setupvars.sh
+source /opt/ros/noetic/setup.bash
+source ~/catkin_ws/install/setup.bash
+source ${CLARE}/../head/devel/setup.bash
+set -x
 
 export ROS_LOG_DIR=${LOGS}/ros
 # Start ROS master
@@ -37,7 +48,7 @@ echo $! > $LOGS/roscore.pid
 while [ -z `rosparam get /run_id` ]
 do
     echo "Waiting for roscore to be detected..."
-    sleep 1
+    sleep 2
 done
 
 RUN_ID=`rosparam get /run_id`
@@ -46,13 +57,14 @@ echo "Roscore running, runid is " ${RUN_ID}
 # Log directory
 ROSOUT_FILE=$(roslaunch-logs)/rosout.log
 
-# Setup environment
-echo "* Setting up environment"
-set +x
-source ~/openvino/bin/setupvars.sh
-source ~/catkin_ws/install/setup.bash
-source ${CLARE}/../head/devel/setup.bash
-set -x
+if [[ "$run_mode" = "minimal" ]]; then
+    echo
+    echo "====== Running minimal mode ======"
+    echo
+    # Keep container running
+    echo "* Tailing rosout file ${ROSOUT_FILE}"
+    tail -f ${ROSOUT_FILE}
+fi
 
 # Start web backend
 echo "* Starting web backend"
@@ -69,9 +81,6 @@ sleep 2
 # Start ROS nodes
 echo "* Starting ROS nodes"
 roslaunch --wait ${CLARE}/../head/launch/clare.launch
-
-# Execute any other command
-exec "$@"
 
 # Keep container running
 echo "* Tailing rosout file ${ROSOUT_FILE}"

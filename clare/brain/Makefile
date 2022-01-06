@@ -51,7 +51,7 @@ runpi:
 	-v /run/udev/data:/run/udev/data \
 	--env LD_LIBRARY_PATH=/opt/vc/lib \
 	--name cbrain \
-	dgorissen/clare
+	dgorissen/clare $(mode)
 
 	# Unfortunately privileged, /dev, and host network is all needed
 	# so that the neural compute stick  will work inside docker
