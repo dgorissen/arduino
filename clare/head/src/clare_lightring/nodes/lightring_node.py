@@ -4,12 +4,12 @@ import time
 import rospy
 from clare_lightring.msg import LightRingMessage
 from threading import Thread
-import neopixel
 import board
+import neopixel_spi as neopixel
+
+PIXEL_ORDER = neopixel.GRB
 
 def wheel(pos):
-    ORDER = neopixel.GRB
-    
     # Input a value 0 to 255 to get a color value.
     # The colours are a transition r - g - b - back to r.
     if pos < 0 or pos > 255:
@@ -28,7 +28,7 @@ def wheel(pos):
         r = 0
         g = int(pos * 3)
         b = int(255 - pos * 3)
-    return (r, g, b) if ORDER in (neopixel.RGB, neopixel.GRB) else (r, g, b, 0)
+    return (r, g, b) if PIXEL_ORDER in (neopixel.RGB, neopixel.GRB) else (r, g, b, 0)
 
 
 class LightringController(object):
@@ -38,7 +38,12 @@ class LightringController(object):
         rospy.init_node("clare_lightring", anonymous=False, disable_signals=False)
 
         self._num_pixels = 24
-        self._pixels = neopixel.NeoPixel(board.D18, self._num_pixels)
+        spi = board.SPI()
+        self._pixels = neopixel.NeoPixel_SPI(spi,
+                                                self._num_pixels,
+                                                pixel_order=PIXEL_ORDER,
+                                                auto_write=False
+        )
         self.turn_off()
         self._led_sub = rospy.Subscriber("clare/lightring", LightRingMessage, self._lightring_callback)
 
