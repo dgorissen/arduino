@@ -207,10 +207,15 @@ RUN echo '%dgorissen ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 RUN apt-get update && apt-get install -y teensy-loader-cli \
   ros-noetic-rosserial-arduino ros-noetic-rosserial-client libncurses5 arduino arduino-builder
 
+RUN usermod -a -G spi dgorissen
+
 USER dgorissen
+RUN pip install adafruit-circuitpython-neopixel-spi
+
 RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
 source /opt/ros/noetic/setup.bash \n\
+source ~/catkin_ws/install/setup.bash \n\
 source ~/clare/head/devel/setup.bash \n\
 export POCKETSPHINX_DATA=$HOME/pocketsphinx-data \n\
 ' >> ~/.bashrc
@@ -225,3 +230,4 @@ EXPOSE 11311
 ENTRYPOINT ["/home/dgorissen/clare/brain/entrypoint.sh"]
 # https://stackoverflow.com/questions/53543881/docker-run-pass-arguments-to-entrypoint
 CMD [""]
+
