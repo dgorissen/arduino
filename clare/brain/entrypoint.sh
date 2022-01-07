@@ -7,12 +7,6 @@ LOCAL_IP=`hostname  -I | cut -f1 -d' '`
 CLARE=/home/dgorissen/clare/brain
 LOGS=$CLARE/logs
 
-tracks_serial=/dev/ttyUSB0
-tracks_usb=/dev/ttyACM0
-
-middle_serial=/dev/ttyUSB1
-middle_usb=/dev/ttyUSB4
-
 mkdir -p $LOGS
 rm -rf $LOGS/*
 
@@ -34,11 +28,10 @@ source ~/catkin_ws/install/setup.bash
 source ${CLARE}/../head/devel/setup.bash
 set -x
 
-export ROS_LOG_DIR=${LOGS}/ros
-# Start ROS master
-
 echo "* Starting roscore"
 
+export ROS_LOG_DIR=${LOGS}/ros
+# Start ROS master
 # export ROS_HOSTNAME=localhost
 export ROS_MASTER_URI=http://${LOCAL_IP}:11311
 roscore -v --master-logger-level=info 2>&1 | tee $LOGS/roscore.txt &

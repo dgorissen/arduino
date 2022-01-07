@@ -54,8 +54,8 @@ enable_uart=1
 
 # Enable audio (loads snd_bcm2835)
 dtparam=audio=on
-dtoverlay=hifiberry-dac
-dtoverlay=i2s-mmap
+#dtoverlay=hifiberry-dac
+#dtoverlay=i2s-mmap
 
 hdmi_drive:0=1
 hdmi_force_hotplug:0=1
@@ -73,19 +73,19 @@ hdmi_mode:1=87
 hdmi_timings:1=480 0 40 10 80 800 0 13 3 32 0 0 0 60 0 32000000 3
 display_hdmi_rotate:1=3
 
-dtoverlay=ads7846,cs=1,penirq=25,penirq_pull=2,speed=50000,keep_vref_on=0,swapxy=0,pmax=255,xohms=150,xmin=200,xmax=3900,ymin=200,ymax=3900
+# Touch screen, disabled as not used and also collides with the light ring spi usage
+#dtoverlay=ads7846,cs=1,penirq=25,penirq_pull=2,speed=50000,keep_vref_on=0,swapxy=0,pmax=255,xohms=150,xmin=200,xmax=3900,ymin=200,ymax=3900
 
 [all]
 dtoverlay=vc4-fkms-v3d
-
-# Serial hat waveshare
-#dtoverlay=sc16is752-i2c,int_pin=24,addr=0x48
 
 start_x=1
 gpu_mem=128
 
 # https://raspberrypi.stackexchange.com/questions/111132/can-i-re-purpose-my-i2c-eeprom-pins-to-act-like-sda-scl-pins
-dtoverlay=i2c-gpio,i2c_gpio_sda=11,i2c_gpio_scl=8,bus=3
+# Note we cant use gpio pins 7-11 as that collides with spi
+dtoverlay=i2c-gpio,i2c_gpio_sda=17,i2c_gpio_scl=18,bus=3
 
+# IR input
 dtoverlay=gpio-ir,gpio_pin=16
 
