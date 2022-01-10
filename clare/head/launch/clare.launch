@@ -4,11 +4,12 @@
     Device map:
 
     /dev/ttyACM0 - Teensyduino_USB_Serial_8880670   -> teensy usb -> tracks
-    /dev/ttyUSB0 - 1a86_USB2.0-Serial               -> arduino usb -> middle
-    /dev/ttyUSB1 - FTDI_Quad_RS232-HS               -> teensy serial -> tracks
-    /dev/ttyUSB2 - FTDI_Quad_RS232-HS               -> arduino serial -> middle
+    /dev/ttyUSB0 - FTDI_Quad_RS232-HS               -> teensy serial -> tracks
+    /dev/ttyUSB1 - FTDI_Quad_RS232-HS               -> arduino serial -> middle
+    /dev/ttyUSB2 - FTDI_Quad_RS232-HS               
     /dev/ttyUSB3 - FTDI_Quad_RS232-HS
-    /dev/ttyUSB4 - FTDI_Quad_RS232-HS
+    /dev/ttyUSB4 - 1a86_USB2.0-Serial               -> arduino usb -> middle
+    
     -->
 
     <!-- HEAD =========================================================================== -->
@@ -32,7 +33,7 @@
     <!-- BODY MIDDLE ====================================================================== -->
     <node name="clare_middle" pkg="clare_middle" type="middle_node.py">
         <!-- Both the serial and usb outputs can be used -->
-        <param name="port" value="/dev/ttyUSB0"/>
+        <param name="port" value="/dev/ttyUSB1"/>
         <param name="baud" value="115200"/>
     </node>
 
@@ -50,7 +51,7 @@
 
     <!-- TRACKS =========================================================================== -->
     <node name="clare_tracks" pkg="rosserial_python" type="serial_node.py">
-        <param name="port" value="/dev/ttyUSB1"/>
+        <param name="port" value="/dev/ttyUSB0"/>
         <param name="baud" value="115200"/>
     </node>
 
