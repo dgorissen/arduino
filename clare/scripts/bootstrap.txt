@@ -1,7 +1,9 @@
 # Steps needeed to setup a fresh RPi4 ready to run the clare container
 
-# On pi enable serial, i2c, camera, vnc with raspi-config
-# Also enable opengl: "7. Advanced Options" – "A8 GL Driver" – "G2 GL (Fake KMS)"
+In raspi-config enable:
+  serial, i2c, camera, vnc, spi
+  opengl: "7. Advanced Options" – "A8 GL Driver" – "G2 GL (Fake KMS)"
+  set hostname to clare
 
 # Increase swap to 2GB by changing the file below to CONF_SWAPSIZE=2048:
 sudo vi /etc/dphys-swapfile
