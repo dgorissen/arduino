@@ -4,7 +4,7 @@ set -x
 
 LOCAL_IP=`hostname  -I | cut -f1 -d' '`
 
-CLARE=/home/dgorissen/clare/brain
+CLARE=/home/dgorissen/clare
 LOGS=$CLARE/logs
 
 mkdir -p $LOGS
@@ -25,7 +25,7 @@ set +x
 source ~/openvino/bin/setupvars.sh
 source /opt/ros/noetic/setup.bash
 source ~/catkin_ws/install/setup.bash
-source ${CLARE}/../head/devel/setup.bash
+source ${CLARE}/ros/devel/setup.bash
 set -x
 
 echo "* Starting roscore"
@@ -61,19 +61,19 @@ fi
 
 # Start web backend
 echo "* Starting web backend"
-/home/dgorissen/.pyenv/shims/python3 $CLARE/server/app.py 2>&1 | tee $LOGS/backend.txt &
+/home/dgorissen/.pyenv/shims/python3 $CLARE/interface/server/app.py 2>&1 | tee $LOGS/backend.txt &
 echo $! > $LOGS/backend.pid
 sleep 2
 
 # Start web frontend
 echo "* Starting web frontend"
-npm run serve --prefix $CLARE/client > $LOGS/frontend.txt 2>&1 &
+npm run serve --prefix $CLARE/interface/client > $LOGS/frontend.txt 2>&1 &
 echo $! > $LOGS/frontend.pid
 sleep 2
 
 # Start ROS nodes
 echo "* Starting ROS nodes"
-roslaunch --wait ${CLARE}/../head/launch/clare.launch
+roslaunch --wait ${CLARE}/ros/launch/clare.launch
 
 # Keep container running
 echo "* Tailing rosout file ${ROSOUT_FILE}"

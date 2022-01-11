@@ -2,8 +2,7 @@ SHELL := /bin/bash
 
 # Get clare directory
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
-mkfile_dir := $(dir $(mkfile_path))
-rootdir := $(shell dirname $(mkfile_dir))
+clare_dir := $(dir $(mkfile_path))
 
 build_arch ?= $(shell arch)
 real_arch = $(shell arch)
@@ -37,9 +36,9 @@ endif
 runpi:
 	docker run \
 	--rm \
-	-v ${rootdir}:/home/dgorissen/clare \
+	-v ${clare_dir}:/home/dgorissen/clare \
 	-v ${HOME}/.Xauthority:/home/dgorissen/.Xauthority \
-	-h cbrain \
+	-h clare \
 	-p5000:5000 -p11311:11311 -p8080:8080 \
 	--device /dev/gpiomem \
 	--privileged \
@@ -50,7 +49,7 @@ runpi:
 	-v /sys/class/gpio:/sys/class/gpio \
 	-v /run/udev/data:/run/udev/data \
 	--env LD_LIBRARY_PATH=/opt/vc/lib \
-	--name cbrain \
+	--name clare \
 	dgorissen/clare $(mode)
 
 	# Unfortunately privileged, /dev, and host network is all needed
@@ -63,7 +62,7 @@ runpi:
 	# https://stackoverflow.com/questions/50789172/libinput-in-a-docker-container
 
 execshell:
-	docker exec -e DISPLAY=${DISPLAY} -it cbrain bash
+	docker exec -e DISPLAY=${DISPLAY} -it clare bash
 
 push:
 	docker push dgorissen/clare
@@ -80,21 +79,16 @@ ros_build:
 	# See http://wiki.ros.org/catkin/Tutorials/workspace_overlaying
 	# https://stackoverflow.com/questions/7507810/how-to-source-a-script-in-a-makefile
 	# the setuptools option because of https://github.com/ros/catkin/issues/863
-	. ~/catkin_ws/install/setup.bash && catkin_make -C ${rootdir}/head -DSETUPTOOLS_DEB_LAYOUT=OFF
-
-ros_install:
-	make -C ${rootdir}/head/build install
+	. ~/catkin_ws/install/setup.bash && catkin_make -C ros -DSETUPTOOLS_DEB_LAYOUT=OFF
 
 tracks_build:
-	make -C ../tracks build
+	make -C ros/src/clare_tracks build
 
 tracks_upload:
-	make -C ../tracks upload
+	make -C ros/src/clare_tracks upload
 
 middle_build:
-	make -C ../head/src/clare_middle build
+	make -C ros/src/clare_middle build
 
 middle_upload:
-	make -C ../head/src/clare_middle upload
-
-
+	make -C ros/src/clare_middle upload
