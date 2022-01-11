@@ -20,7 +20,7 @@ from speech_recognition_msgs.msg import SpeechRecognitionCandidates
 from sensor_msgs.msg import CompressedImage
 
 """
-Simple set of classes to hold a state object for a single time step
+Simple wrapper classes to facilitate data transfer from ROS to the browser
 """
 class BaseState:
     def __init__(self):

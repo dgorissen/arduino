@@ -1,18 +1,7 @@
 {
 	"folders": [
 		{
-			"path": "brain"
-		},
-		{
-			"path": "head"
-		},
-		{
-			"name": "clare_middle",
-			"path": "head/src/clare_middle"
-		},
-		{
-			"name": "clare_tracks",
-			"path": "head/src/clare_tracks"
+			"path": "."
 		}
 	],
 	"settings": {

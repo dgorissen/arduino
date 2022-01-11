@@ -216,7 +216,7 @@ RUN echo -e '\n### \n\
 source ~/openvino/bin/setupvars.sh \n\
 source /opt/ros/noetic/setup.bash \n\
 source ~/catkin_ws/install/setup.bash \n\
-source ~/clare/head/devel/setup.bash \n\
+source ~/clare/ros/devel/setup.bash \n\
 export POCKETSPHINX_DATA=$HOME/pocketsphinx-data \n\
 ' >> ~/.bashrc
 
@@ -227,7 +227,7 @@ EXPOSE 5000
 EXPOSE 8080
 EXPOSE 11311
 
-ENTRYPOINT ["/home/dgorissen/clare/brain/entrypoint.sh"]
+ENTRYPOINT ["/home/dgorissen/clare/entrypoint.sh"]
 # https://stackoverflow.com/questions/53543881/docker-run-pass-arguments-to-entrypoint
 CMD [""]
 
