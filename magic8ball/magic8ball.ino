@@ -1,5 +1,4 @@
 /*   Magic 8 Ball with a 16x2 LCD + Tilt switch */
-
 // Tilt pin
 #define TILT 19
 
@@ -18,47 +17,68 @@ bool prevReading = false;
 long lastTime = 0;
 long debounce = 200;
 
-// Magic 8 Ball strings
-String responses[] = {
-  "Are you a girl? ",
-  "Are you a boy?  ",
-  "Do you like aubergines?",
+typedef struct {
+   char description [35];
+} msgType;
 
-  "It is certain.  ",
-  "Decidedly so.   ",
-  "Without a doubt.",
-  "Definitely.     ",
-  "Rely on it.     ",
-  "As I see it, yes",
-  "Most likely.    ",
-  "Do bears poop in the woods?",
-  "Yes.            ",
+
+// Magic 8 Ball strings
+const msgType responses[] PROGMEM = {
+  {"Are you a girl? "},
+  {"Are you a boy?  "},
+  {"Does Lucas like raddishes?"},
+  {"Do you like aubergines?"},
+
+  {"It is certain.  "},
+  {"Decidedly so.   "},
+  {"Without a doubt."},
+  {"Definitely.     "},
+  {"Rely on it.     "},
+  {"Absolutely.     "},
+  {"As I see it, yes"},
+  {"Most likely.    "},
+  {"Do bears poop in the woods?"},
+  {"Yep.            "},
+  {"Yes.            "},
+  {"Because its you, yes"},
+  {"Affirmative.    "},
+  {"Obviously yes.  "},
+
+  {"Im busy. Go away"},
+  {"I defer to dad. "},
+  {"Ask again later."},
+  {"Better not say. "},
+  {"Cannot predict. "},
+  {"Silly question, Next!"},
+  {"Not in the mood "},
+  {"Who cares.      "},
+  {"Euuu...what was the quesiton agian?"},
+  {"Im too tired for this"},
+  {"Oh look there!  "},
+  {"Meh             "},
+  {"What would dad say?"},
+  {"Does it matter? "},
   
-  "Im busy. Go away",
-  "I defer to dad. ",
-  "Ask again later.",
-  "Better not say. ",
-  "Cannot predict. ",
-  "Not in the mood ",
-  "Who cares.      ",
-  "Errr, say what? ",
-  "Does it matter? ",
-  
-  "Dont count on it",
-  "My reply is no. ",
-  "Sources say no. ",
-  "Nein!           ",
-  "Nope.           ",
-  "Simon says no.  ",
-  "Universe says no",
-  "Outlook not good",
-  "Very doubtful.  "
+  {"Dont count on it"},
+  {"My reply is no. "},
+  {"Sources say no. "},
+  {"Oh God, no      "},
+  {"Nein!           "},
+  {"Nope.           "},
+  {"Simon says no.  "},
+  {"Hermoine says no"},
+  {"Universe says no"},
+  {"Request rejected"},
+  {"I would be lying if I said yes."},
+  {"Do fishes fly?  "},
+  {"Outlook not good"},
+  {"Very doubtful.  "}
 };
 
 void setup() {
   
   Serial.begin(9600);
-  
+    
   // Activate the built-in pullup
   pinMode(TILT, INPUT_PULLUP);
   
@@ -105,9 +125,13 @@ void clear(){
 void showAnswer(){
     clear();
     // Random choice
-    randomSeed(analogRead(0)); 
+    randomSeed(analogRead(0)*analogRead(1)); 
     int pickedNum = random (0, 29);
-    String selectedResponse = responses[pickedNum];
+    
+    msgType msgToShow;
+    memcpy_P (&msgToShow, &responses [pickedNum], sizeof msgToShow);
+    
+    const char* selectedResponse = msgToShow.description;
     // Delay a bit before outputting answer
     delay(500);
 
@@ -161,7 +185,7 @@ void loop()
     thinking();
     delay(2000);
     showAnswer();
-    delay(5000);
+    delay(4000);
     clear();
   }
 
