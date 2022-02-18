@@ -126,7 +126,7 @@ void showAnswer(){
     clear();
     // Random choice
     randomSeed(analogRead(0)*analogRead(1)); 
-    int pickedNum = random (0, 29);
+    int pickedNum = random (0, 45);
     
     msgType msgToShow;
     memcpy_P (&msgToShow, &responses [pickedNum], sizeof msgToShow);
