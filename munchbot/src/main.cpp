@@ -7,7 +7,7 @@
 // let's make an instance of Servo
 Servo armServo;
 
-const int DOWN_POS = 175;
+const int DOWN_POS = 170;
 const int UP_POS = 70;
 const int SERVO_PIN = 8;
 const int SENSOR_PIN = 7;
