@@ -252,7 +252,7 @@ bool is_time_to_unlock(){
   return !is_time_to_lock();
 }
 
-void loop() {
+void loop_main() {
   if(is_unlocked() && is_time_to_lock()){
     if (is_lid_closed() && is_phone_present()) {
       lock_lid();
@@ -271,4 +271,42 @@ void loop() {
   }
   
   delay(1000);
+}
+
+void loop_test(){
+  Serial.print("is_unlocked: ");
+  Serial.println(is_unlocked());
+  
+  Serial.print("is time to lock: ");
+  Serial.println(is_time_to_lock());
+
+  Serial.print("is lid closed: ");
+  Serial.println(is_lid_closed());
+
+  Serial.print("is phone present: ");
+  Serial.println(is_phone_present());
+
+  Serial.print("is phone present dist: ");
+  Serial.println(is_phone_present_dist());
+
+  Serial.print("is phone present switch: ");
+  Serial.println(is_phone_present_switch());
+
+  Serial.print("");
+  Serial.println();
+
+  lock_lid();
+  lock_tone();
+  show_colour(red);
+
+  delay(2000);
+    
+  unlock_lid();
+  unlock_tone();
+  show_colour(green);
+}
+
+void loop(){
+  //loop_main();
+  loop_test();
 }
