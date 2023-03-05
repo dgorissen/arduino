@@ -1,20 +1,35 @@
 #include <Wire.h>
 #include <VL53L1X.h>
-#include <ESP32Servo.h>
 #include <Adafruit_DotStar.h>
 #include <SPI.h>
 #include "pitches.h"
 #include <WiFi.h>
+#include <HTTPClient.h>
 #include "time.h"
+#include "ESP32_ISR_Servo.h"
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
-const char* ssid       = "YOUR_SSID";
-const char* password   = "YOUR_PASS";
+const char* ssid       = "dummy";
+const char* password   = "dummy";
+const char* CAL_SECRET = "dummy";
 
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 0*60*60;
 const int   daylightOffset_sec = 3600;
 
-const int SERVO_PIN = 5;
+const int LOCK_HR = 19;
+const int LOCK_MIN = 30;
+const int UNLOCK_HR = 8;
+const int UNLOCK_MIN = 0;
+
+const int CAL_CHECK_INTERVAL = 1000*60*15;
+const int ALARM_DURATION = 1000*60*1;
+const int PHONE_DIST = 50;
+
+const int SERVO_PIN = 10;
 const int LED_DIN_PIN = 11;
 const int LED_CIN_PIN = 12;
 const int PIEZZO_PIN = 5;
@@ -23,8 +38,7 @@ const int CONT_SWITCH_PIN = 9;
 
 VL53L1X dist_sensor;
 //Adafruit_NeoPixel status_led = Adafruit_NeoPixel(1, PIN_NEOPIXEL, NEO_GRB);
-Adafruit_DotStar strip = Adafruit_DotStar(20, LED_DIN_PIN, LED_CIN_PIN, DOTSTAR_BRG);
-Servo lock_servo; 
+Adafruit_DotStar strip = Adafruit_DotStar(20, LED_DIN_PIN, LED_CIN_PIN, DOTSTAR_BGR);
 
 const uint32_t orange = strip.Color(255, 165, 0);
 const uint32_t red = strip.Color(255, 0, 0);
@@ -32,7 +46,153 @@ const uint32_t green = strip.Color(0, 255, 0);
 const uint32_t blue = strip.Color(0, 0, 255);
 
 bool locked = false;
-long minss_since_start = 0;
+int servoIndex1 = -1;
+int cal_res = -1;
+int last_cal_check = -1;
+long alarm_start = -1;
+bool ble_override = false;
+
+BLEServer *pServer = NULL;
+BLECharacteristic * pTxCharacteristic;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+uint8_t txValue = 0;
+
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
+void lock_lid();
+void unlock_lid();
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+    }
+};
+
+class MyCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      String rxValue = pCharacteristic->getValue().c_str();
+
+      if (rxValue.length() > 0) {
+        Serial.print("Received BLE Value: ");
+        Serial.println(rxValue);
+
+        if(rxValue.equals("U\n")){
+          ble_override = true;
+          unlock_lid();
+        }else if(rxValue.equals("L\n")){
+          ble_override = true;
+          lock_lid();
+        }else if(rxValue.equals("C\n")){
+          ble_override = false;
+        }else{
+          Serial.print("Invalid BLE command, ignoring: '");
+          Serial.print(rxValue);
+          Serial.println("'");
+        }
+      }
+    }
+};
+
+
+void setup_ble() {
+  // Create the BLE Device
+  BLEDevice::init("UART Service");
+
+  // Create the BLE Server
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  // Create the BLE Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  // Create a BLE Characteristic
+  pTxCharacteristic = pService->createCharacteristic(
+										CHARACTERISTIC_UUID_TX,
+										BLECharacteristic::PROPERTY_NOTIFY
+									);
+                      
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
+											 CHARACTERISTIC_UUID_RX,
+											BLECharacteristic::PROPERTY_WRITE
+										);
+
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+
+  // Start the service
+  pService->start();
+
+  // Start advertising
+  pServer->getAdvertising()->start();
+  Serial.println("Waiting a client connection to notify...");
+}
+
+void iter_ble(){
+    if (deviceConnected) {
+        pTxCharacteristic->setValue(&txValue, 1);
+        pTxCharacteristic->notify();
+        txValue++;
+		delay(10); // bluetooth stack will go into congestion, if too many packets are sent
+	}
+
+    // disconnecting
+    if (!deviceConnected && oldDeviceConnected) {
+        delay(500); // give the bluetooth stack the chance to get things ready
+        pServer->startAdvertising(); // restart advertising
+        Serial.println("BLE start advertising");
+        oldDeviceConnected = deviceConnected;
+    }
+    // connecting
+    if (deviceConnected && !oldDeviceConnected) {
+		  // do stuff here on connecting
+        oldDeviceConnected = deviceConnected;
+    }
+}
+
+bool check_calendar(){
+  if(WiFi.status() == WL_CONNECTED){
+      HTTPClient http;
+
+      String serverPath = "https://script.google.com/macros/s/" + String(CAL_SECRET) + "/exec";
+      
+      http.begin(serverPath.c_str());
+      http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+      
+      Serial.print("Making calendar request...");
+      int httpResponseCode = http.GET();
+      String payload = "";
+
+      if (httpResponseCode>0) {
+        Serial.print("HTTP Response code: ");
+        Serial.println(httpResponseCode);
+        payload = http.getString();
+        Serial.println("Response: '" + payload + "'");
+      } else {
+        Serial.print("Error code: ");
+        Serial.println(httpResponseCode);
+      }
+      // Free resources
+      http.end();
+
+      if(payload.equals("true")){
+        Serial.println("TRUE");
+        return true;
+      }
+
+    } else {
+      Serial.println("WiFi Disconnected");
+    }
+
+    return false;
+}
 
 void printLocalTime() {
   struct tm timeinfo;
@@ -40,6 +200,7 @@ void printLocalTime() {
     Serial.println("Failed to obtain time");
     return;
   }
+  Serial.print("Local time: ");
   Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
 }
 
@@ -48,13 +209,7 @@ void show_colour(const uint32_t c){
   strip.show();
 }
 
-void show_colour(const int r, const int g, const int b){
-  strip.fill(r, g, b);
-  strip.show();
-}
-
 void connect_to_wifi(){
-  //connect to WiFi
   Serial.printf("Connecting to %s ", ssid);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -62,27 +217,13 @@ void connect_to_wifi(){
       Serial.print(".");
   }
   Serial.println(" CONNECTED");
+
   //init and get the time
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 }
 
-void setup() {
-  // Allow allocation of all timers
-	ESP32PWM::allocateTimer(0);
-	ESP32PWM::allocateTimer(1);
-	ESP32PWM::allocateTimer(2);
-	ESP32PWM::allocateTimer(3);
 
-  strip.begin();
-  strip.setBrightness(50);
-  strip.fill(orange);
-  strip.show();
-
-  while(!Serial) {}
-  Serial.begin(115200);
-  Wire.begin();
-  Wire.setClock(400000); // use 400 kHz I2C
-
+void setup_dist_sensor(){
   dist_sensor.setTimeout(500);
   while (!dist_sensor.init()) {
     Serial.println("Failed to detect and initialize sensor!");
@@ -92,15 +233,47 @@ void setup() {
   dist_sensor.setDistanceMode(VL53L1X::Short);
   dist_sensor.setMeasurementTimingBudget(20000);
   dist_sensor.startContinuous(50);
+}
 
-  lock_servo.attach(SERVO_PIN, 500, 2500);
-  lock_servo.setPeriodHertz(50);
+void setup_servo(){
+  ESP32_ISR_Servos.useTimer(3);
+  servoIndex1 = ESP32_ISR_Servos.setupServo(SERVO_PIN, 500, 2500);
+  
+  if (servoIndex1 != -1){
+    Serial.println(F("Servo setup OK"));
+  }  else {
+    Serial.println(F("Servo setup failed"));
+  }
+}
+
+
+void setup() {
+  strip.begin();
+  strip.setBrightness(50);
+  strip.fill(orange);
+  strip.show();
+
+  int max_wait = 8;
+  int i = 0;
+  while(!Serial && i < max_wait) {
+    delay(1000);
+    ++i;
+  }
+
+  Serial.begin(115200);
+  Wire.begin();
+  Wire.setClock(400000); // use 400 kHz I2C
+
+  setup_dist_sensor();
+  setup_servo();
 
   pinMode(PIEZZO_PIN, OUTPUT);
   pinMode(MIC_SWITCH_PIN, INPUT);
   pinMode(CONT_SWITCH_PIN, INPUT);
 
-  connect_to_wifi(); 
+  setup_ble();
+  connect_to_wifi();
+
   printLocalTime();
 
   strip.fill(blue);
@@ -116,8 +289,8 @@ bool is_phone_present_switch(){
 }
 
 bool is_phone_present_dist(){
-  const int n = 5;
-  const int thres = 5;
+  const int n = 20;
+  const int thres = PHONE_DIST;
   const int pad = 5;
   float dist = 0;
   
@@ -137,14 +310,14 @@ bool is_phone_present_dist(){
   if (((dist-pad) <= thres) && ((dist+pad) >= thres)){
     return true;
   }else{
-    Serial.println("Warning: phone not detected");
+    Serial.println("Warning: phone not (distance) detected");
   }
 
   return false;
 }
 
 bool is_phone_present(){
-  return is_phone_present_dist() && is_phone_present_switch;
+  return is_phone_present_dist() && is_phone_present_switch();
 }
 
 void play_melody(int melody[], int durations[], int len){
@@ -152,14 +325,14 @@ void play_melody(int melody[], int durations[], int len){
     // to calculate the note duration, take one second divided by the note type.
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
     int noteDuration = 1000 / durations[thisNote];
-    tone(8, melody[thisNote], noteDuration);
+    tone(PIEZZO_PIN, melody[thisNote], noteDuration);
 
     // to distinguish the notes, set a minimum time between them.
     // the note's duration + 30% seems to work well:
     int pauseBetweenNotes = noteDuration * 1.30;
     delay(pauseBetweenNotes);
     // stop the tone playing:
-    noTone(8);
+    noTone(PIEZZO_PIN);
   }
 }
 
@@ -203,25 +376,39 @@ void alarm_tone(){
 }
 
 void lock_lid(){
-  if(locked) return;
+  if(locked){
+    Serial.println("Asked to lock, but locked is true, ignoring");
+    return;
+  } else {
+    Serial.println("Locking lid");
+  }
 
   for (int pos = 0; pos <= 180; pos += 1){
-    lock_servo.write(pos);
+    ESP32_ISR_Servos.setPosition(servoIndex1,pos);
     delay(10);
   }
 
   locked = true;
+  lock_tone();
+  show_colour(red);
 }
 
 void unlock_lid(){
-  if(locked == false) return;
+  if(!locked){
+    Serial.println("Asked to unlock, but locked is false, ignoring");
+    return;
+  } else {
+    Serial.println("Unlocking lid");
+  }
 
   for (int pos = 180; pos >= 0; pos -= 1){
-    lock_servo.write(pos);
+    ESP32_ISR_Servos.setPosition(servoIndex1,pos);
     delay(10);
   }
 
   locked = false;
+  unlock_tone();
+  show_colour(green);
 }
 
 bool is_locked(){
@@ -235,42 +422,106 @@ bool is_unlocked(){
 bool is_time_to_lock(){
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
+    Serial.println("Error: Failed to obtain time");
     return false;
   }
 
-  // dummy impl
-  if (timeinfo.tm_sec < 30){
-    return true;
-  }else{
+  // Dont hammer the calendar
+  if((last_cal_check < 0) || ((millis() - last_cal_check) > CAL_CHECK_INTERVAL)){
+    cal_res = check_calendar();
+    last_cal_check = millis();
+  }
+  
+  if (cal_res){
+    Serial.println("Today is a phone locking day!");
+  } else {
+    // Today is not a phone locking day, rejoice
     return false;
   }
+
+  bool res = false;
+  if(timeinfo.tm_hour > LOCK_HR) {
+    res = true;
+  }else if((timeinfo.tm_hour == LOCK_HR) && (timeinfo.tm_min >= LOCK_MIN)){
+    res = true;
+  } else {
+    // Nothing to do, safe
+    res = false;
+  }
+
+  if(res){
+    Serial.println("Time to lock!");
+  }else{
+    Serial.println("Not time to lock yet");
+  }
+
+  return res;
 }
 
 bool is_time_to_unlock(){
-  // dummy impl
-  return !is_time_to_lock();
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Error: Failed to obtain time");
+    return false;
+  }
+
+  bool res = false;
+  if(timeinfo.tm_hour > UNLOCK_HR) {
+    res = true;
+  }else if((timeinfo.tm_hour == UNLOCK_HR) && (timeinfo.tm_min >= UNLOCK_MIN)){
+    res = true;
+  } else {
+    // Nothing to do, safe
+    res = false;
+  }
+
+  if(res){
+    Serial.println("Time to unlock");
+  }else{
+    Serial.println("Not time to unlock yet");
+  }
+
+  return res;
+}
+
+void alarm(){
+  show_colour(red);
+  alarm_tone();
 }
 
 void loop_main() {
-  if(is_unlocked() && is_time_to_lock()){
-    if (is_lid_closed() && is_phone_present()) {
+  printLocalTime();
+
+  iter_ble();
+  delay(5000);
+
+  // User (phone) override
+  if(ble_override){
+    Serial.println("Somebody using BLE to control box, ignoring std logic");
+    return;
+  }
+
+  if(is_unlocked() && !is_time_to_unlock() && is_time_to_lock()){
+    if (is_lid_closed() && is_phone_present_switch()) {
       lock_lid();
-      lock_tone();
-      show_colour(red);
-      Serial.println("Box locked");
+      alarm_start = -1;
+      Serial.println("Box locked !");
     } else {
       Serial.println("ERROR: Time to lock but lid is open or phone not detected");
+      if((alarm_start < 0) || ((millis() - alarm_start) < ALARM_DURATION)){
+        Serial.println("Sounding alarm");
+        alarm_start = millis();
+        alarm();
+      }else{
+        Serial.println("Alarm not listened to, giving up");
+      }
     }
   } else if(is_locked() && is_time_to_unlock()){
     unlock_lid();
-    unlock_tone();
-    show_colour(green);
+    Serial.println("Box unlocked !");
   } else {
     // nothing to do
   }
-  
-  delay(1000);
 }
 
 void loop_test(){
@@ -292,21 +543,27 @@ void loop_test(){
   Serial.print("is phone present switch: ");
   Serial.println(is_phone_present_switch());
 
-  Serial.print("");
-  Serial.println();
+  Serial.println("--------------------------");
 
   lock_lid();
-  lock_tone();
-  show_colour(red);
-
-  delay(2000);
-    
+  delay(1000);   
   unlock_lid();
-  unlock_tone();
-  show_colour(green);
+
+  iter_ble();
+}
+
+void loop_ble(){
+  iter_ble();
+}
+
+void loop_caltest(){
+  check_calendar();
+  delay(3000);
 }
 
 void loop(){
-  //loop_main();
-  loop_test();
+  loop_main();
+  //loop_test();
+  //loop_ble();
+  //loop_caltest();
 }
