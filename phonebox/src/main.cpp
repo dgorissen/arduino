@@ -27,7 +27,7 @@ const int UNLOCK_MIN = 0;
 
 const int CAL_CHECK_INTERVAL = 1000*60*15;
 const int ALARM_DURATION = 1000*60*1;
-const int PHONE_DIST = 50;
+const int PHONE_DIST = 48.5;
 
 const int SERVO_PIN = 10;
 const int LED_DIN_PIN = 11;
@@ -291,7 +291,7 @@ bool is_phone_present_switch(){
 bool is_phone_present_dist(){
   const int n = 20;
   const int thres = PHONE_DIST;
-  const int pad = 5;
+  const int pad = 2.5;
   float dist = 0;
   
   // Take an average over n
@@ -383,7 +383,7 @@ void lock_lid(){
     Serial.println("Locking lid");
   }
 
-  for (int pos = 0; pos <= 180; pos += 1){
+  for (int pos = 5; pos <= 180; pos += 1){
     ESP32_ISR_Servos.setPosition(servoIndex1,pos);
     delay(10);
   }
@@ -401,7 +401,7 @@ void unlock_lid(){
     Serial.println("Unlocking lid");
   }
 
-  for (int pos = 180; pos >= 0; pos -= 1){
+  for (int pos = 180; pos >= 5; pos -= 1){
     ESP32_ISR_Servos.setPosition(servoIndex1,pos);
     delay(10);
   }
@@ -546,7 +546,7 @@ void loop_test(){
   Serial.println("--------------------------");
 
   lock_lid();
-  delay(1000);   
+  delay(2000);   
   unlock_lid();
 
   iter_ble();
