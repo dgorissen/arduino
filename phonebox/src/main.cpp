@@ -209,6 +209,7 @@ void show_colour(const uint32_t c){
   strip.show();
 }
 
+
 void connect_to_wifi(){
   Serial.printf("Connecting to %s ", ssid);
   WiFi.begin(ssid, password);
@@ -419,6 +420,43 @@ bool is_unlocked(){
   return !is_locked();
 }
 
+bool is_lock_time(const int now_h, const int now_m){
+  bool res = false;
+
+  // Assumes never locking more than 24h
+
+  // Are we locking for less than an hour
+  if (now_h == LOCK_HR == UNLOCK_HR){
+    res = (LOCK_MIN <= now_m <= UNLOCK_MIN);
+  
+  // We span midnight
+  } else if(LOCK_HR > UNLOCK_HR){
+    // cur is after lock but before midnight
+    if((now_h > LOCK_HR) && (now_h > UNLOCK_HR)){
+      res = true;
+    // cur is after lock but before midnight, mins matter
+    }else if (((now_h == LOCK_HR) && (now_m >= LOCK_MIN)) && (now_h > UNLOCK_HR)){
+      res = true;
+    // cur is after lock and after midnight
+    }else if((now_h < LOCK_HR) && (now_h < UNLOCK_HR)){
+      res = true;
+    // cur is after lock and after midnight, mins matter
+    }else if ((now_h < LOCK_HR) && ((now_h == UNLOCK_HR) && (now_m <= UNLOCK_MIN))){
+      res = true;
+    } else {
+      // Stay unlocked
+      res = false;
+    }
+  // We dont span midnight
+  } else {
+    res = ((now_h >= LOCK_HR) && (now_m >= LOCK_MIN)) && ((now_h <= UNLOCK_HR) && (now_m <= UNLOCK_MIN));
+  }
+
+  Serial.print("Time locking calc: now_h=" + String(now_h) + " now_m=" + String(now_m) + " res=" + String(res));
+
+  return res;
+}
+
 bool is_time_to_lock(){
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
@@ -431,7 +469,7 @@ bool is_time_to_lock(){
     cal_res = check_calendar();
     last_cal_check = millis();
   }
-  
+
   if (cal_res){
     Serial.println("Today is a phone locking day!");
   } else {
@@ -439,15 +477,7 @@ bool is_time_to_lock(){
     return false;
   }
 
-  bool res = false;
-  if(timeinfo.tm_hour > LOCK_HR) {
-    res = true;
-  }else if((timeinfo.tm_hour == LOCK_HR) && (timeinfo.tm_min >= LOCK_MIN)){
-    res = true;
-  } else {
-    // Nothing to do, safe
-    res = false;
-  }
+  bool res = is_lock_time(timeinfo.tm_hour, timeinfo.tm_min);
 
   if(res){
     Serial.println("Time to lock!");
@@ -465,15 +495,7 @@ bool is_time_to_unlock(){
     return false;
   }
 
-  bool res = false;
-  if(timeinfo.tm_hour > UNLOCK_HR) {
-    res = true;
-  }else if((timeinfo.tm_hour == UNLOCK_HR) && (timeinfo.tm_min >= UNLOCK_MIN)){
-    res = true;
-  } else {
-    // Nothing to do, safe
-    res = false;
-  }
+  bool res = ! is_lock_time(timeinfo.tm_hour, timeinfo.tm_min);
 
   if(res){
     Serial.println("Time to unlock");
@@ -501,7 +523,7 @@ void loop_main() {
     return;
   }
 
-  if(is_unlocked() && !is_time_to_unlock() && is_time_to_lock()){
+  if(is_unlocked() && is_time_to_lock()){
     if (is_lid_closed() && is_phone_present_switch()) {
       lock_lid();
       alarm_start = -1;
