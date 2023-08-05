@@ -5,7 +5,7 @@ function doGet(e) {
 
   if (calendars == undefined) {
     Logger.log("No data");
-    return ContentService.createTextOutput("no access to calendar hubba");
+    return ContentService.createTextOutput("no access to calendar");
   }
 
   var calendars_selected = [];
@@ -48,11 +48,12 @@ function doGet(e) {
     // event.getTitle() +';' + 
     // event.isAllDayEvent() + ';';
 
-    if (event.getTitle() == "kids") {
+    if (event.getTitle().toLowerCase() == "kids") {
+      Logger.log("returning true");
       return ContentService.createTextOutput("true");
     }
   }
-
+  Logger.log("returning false");
   return ContentService.createTextOutput("false");
 }
 
