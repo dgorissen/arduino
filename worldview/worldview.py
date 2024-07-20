@@ -13,6 +13,7 @@ from urllib.request import urlopen
 check_delay = 120  # minutes
 rotate_delay = 5  # seconds
 epic_images = []
+first_time = True
 
 # Initialize Flask and Pygame
 app = Flask(__name__)
@@ -61,7 +62,7 @@ def load_epic_frames():
 
 
 def poll_epic_images():
-    global epic_images
+    global epic_images, first_time
     epic_images = ["images/loading.jpg"]
     last_check = datetime.datetime.now() - datetime.timedelta(days=1)
     last_data = ""
@@ -121,6 +122,10 @@ def poll_epic_images():
                     images.append(impath)
 
                 epic_images = images
+                if first_time:
+                    first_time = False
+                    with gif_selection_lock:
+                        selected_gif[0] = "epic"              
                 print("Images saved")
 
 
@@ -143,7 +148,7 @@ def pygame_thread():
         with gif_selection_lock:
             if selected_gif[0] and selected_gif[0] != current_gif:
                 current_gif = selected_gif[0]
-                if selected_gif[0] == "epic":
+                if selected_gif[0].startswith("epic"):
                     gif_frames = load_epic_frames()
                     frame_duration = rotate_delay * 1000
                 else:
@@ -175,7 +180,7 @@ def load_gif_frames(gif_name):
 
 
 with gif_selection_lock:
-    selected_gif[0] = "epic"
+    selected_gif[0] = "epic_loading"
 
 # Run Flask in a background thread
 flask_thread = threading.Thread(target=run_flask_app, daemon=True)
