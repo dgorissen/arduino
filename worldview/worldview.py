@@ -52,7 +52,7 @@ def index():
 
 
 def run_flask_app():
-    app.run(port=5000, use_reloader=False, threaded=True)
+    app.run(host='0.0.0.0', port=5000, use_reloader=False, threaded=True)
 
 
 def load_epic_frames():
