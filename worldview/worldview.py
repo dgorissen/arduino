@@ -19,7 +19,7 @@ app = Flask(__name__)
 pygame.init()
 os.environ["DISPLAY"] = ":0"
 pygame.display.init()
-screen = pygame.display.set_mode([480, 480])
+screen = pygame.display.set_mode([480, 480], pygame.FULLSCREEN)
 pygame.mouse.set_visible(0)
 pygame.display.set_caption("GIF Viewer")
 
