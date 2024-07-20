@@ -17,14 +17,15 @@ check_delay = 120 #minutes
 rotate_delay = 20 #seconds
 
 # Set up the drawing window
-screen = pygame.display.set_mode([480,480], pygame.FULLSCREEN)
+# screen = pygame.display.set_mode([480,480], pygame.FULLSCREEN)
+screen = pygame.display.set_mode([480,480])
 pygame.mouse.set_visible(0)
 
 # Fill the background with black
 screen.fill((0,0,0))
 
 # Display loading image
-image = pygame.image.load(r"./loading.jpg")
+image = pygame.image.load(r"images/loading.jpg")
 screen.blit(image, (0,0))
 pygame.display.flip()
 
@@ -60,7 +61,7 @@ def save_photos(imageurls):
         cropped.blit(image,(0,0),(125,125,830,830))
         cropped = pygame.transform.scale(cropped, (480,480))
 
-        pygame.image.save(cropped,"./"+str(counter)+".jpg")
+        pygame.image.save(cropped,"images/"+str(counter)+".jpg")
         counter+=1
     print("photos saved")
 
@@ -73,7 +74,7 @@ def rotate_photos(num_photos, rotate_delay):
                 pygame.quit()
                 
         # Create a surface object and draw image on it.
-        image = pygame.image.load(r"./"+str(counter)+".jpg")
+        image = pygame.image.load(r"images/"+str(counter)+".jpg")
 
         # Display image
         screen.blit(image, (0,0))
