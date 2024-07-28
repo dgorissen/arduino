@@ -21,6 +21,7 @@ pygame.init()
 os.environ["DISPLAY"] = ":0"
 pygame.display.init()
 screen = pygame.display.set_mode([480, 480], pygame.FULLSCREEN)
+# screen = pygame.display.set_mode([480, 480])
 pygame.mouse.set_visible(0)
 pygame.display.set_caption("GIF Viewer")
 
@@ -115,6 +116,20 @@ def poll_epic_images():
                     cropped = pygame.Surface((830, 830))
                     cropped.blit(image, (0, 0), (125, 125, 830, 830))
                     cropped = pygame.transform.scale(cropped, (480, 480))
+
+                    current_date = dt.strftime("%a %d %b %Y %H:%M")
+
+                    # Set up the font and size
+                    font = pygame.font.Font(None, 24)
+                    text = font.render(current_date, True, (255, 255, 255))  # White color
+
+                    # Get the text's rectangular area and position it at the bottom center
+                    text_rect = text.get_rect()
+                    text_rect.centerx = cropped.get_rect().centerx
+                    text_rect.y = cropped.get_rect().bottom - 30
+
+                    # Blit the text onto the image
+                    cropped.blit(text, text_rect)
 
                     impath = f"images/{i}.jpg"
                     pygame.image.save(cropped, impath)
