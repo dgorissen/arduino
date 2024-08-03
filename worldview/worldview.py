@@ -3,23 +3,26 @@ import os
 import pygame
 import threading
 from PIL import Image, ImageSequence
+from urllib.request import urlopen
 import requests
 import io
 import datetime
 import time
 from urllib.request import urlopen
+from bidict import bidict
 
 # Settings
-check_delay = 120  # minutes
+check_delay = 10*60 # seconds
 rotate_delay = 5  # seconds
-epic_images = []
-first_time = True
+first_time = [True]
+CACHE = bidict()
 
 # Initialize Flask and Pygame
 app = Flask(__name__)
 pygame.init()
 os.environ["DISPLAY"] = ":0"
 pygame.display.init()
+
 screen = pygame.display.set_mode([480, 480], pygame.FULLSCREEN)
 # screen = pygame.display.set_mode([480, 480])
 pygame.mouse.set_visible(0)
@@ -27,18 +30,20 @@ pygame.display.set_caption("GIF Viewer")
 
 # Initialize lock and shared variables
 gif_selection_lock = threading.Lock()
-selected_gif = [None]  # Shared variable for gif selection
-
+selected_gif = ["rammb"]
+gif_changed = [True]
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
         gif = request.form["gif"]
         with gif_selection_lock:
-            selected_gif[0] = gif
+            if gif != selected_gif[0]:
+                selected_gif[0] = gif
+                gif_changed[0] = True
+
     gifs = os.listdir("gifs/")
-    gifs.append("epic")
-    # Generate radio buttons for each GIF
+    gifs.extend(["epic", "rammb"])
     radio_buttons = "".join(
         f'<input type="radio" id="{gif}" name="gif" value="{gif}" {("checked" if selected_gif[0] == gif else "")}>'
         f'<label for="{gif}">{gif}</label><br>'
@@ -54,94 +59,131 @@ def index():
 
 
 def run_flask_app():
-    app.run(host='0.0.0.0', port=5000, use_reloader=False, threaded=True)
+    app.run(host="0.0.0.0", port=5000, use_reloader=False, threaded=True)
 
 
-def load_epic_frames():
-    frames = [pygame.image.load(im) for im in epic_images]
+def load_image_frames():
+    if first_time[0]:
+        return [pygame.image.load("images/loading.jpg")]
+
+    mode = selected_gif[0]
+    image_filenames = [x[0] for x in sorted(CACHE.items(), key=lambda x: x[1]) if mode in x[0]]
+    frames = [pygame.image.load(im) for im in image_filenames]
     return frames
 
 
-def poll_epic_images():
-    global epic_images, first_time
-    epic_images = ["images/loading.jpg"]
-    last_check = datetime.datetime.now() - datetime.timedelta(days=1)
-    last_data = ""
-    newest_data = ""
+def get_latest_epic_urls():
+    response = requests.get("https://epic.gsfc.nasa.gov/api/natural")
+    imjson = response.json()
+    newest_data = imjson[0]["date"]
+
+    urls = []
+    for i, photo in enumerate(imjson):
+        dt = datetime.datetime.strptime(photo["date"], "%Y-%m-%d %H:%M:%S")
+        imageurl = (
+            "https://epic.gsfc.nasa.gov/archive/natural/"
+            + str(dt.year)
+            + "/"
+            + str(dt.month).zfill(2)
+            + "/"
+            + str(dt.day).zfill(2)
+            + "/jpg/"
+            + photo["image"]
+            + ".jpg"
+        )
+
+        urls.append((dt, imageurl))
+    return newest_data, urls
+
+
+def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor"):
+    RAMMB_BASE_URL = "https://rammb-slider.cira.colostate.edu/data/"
+    timestamps_url = f"{RAMMB_BASE_URL}json/{sat}/{sector}/{product}/latest_times.json"
+    response = requests.get(timestamps_url)
+    tsjson = response.json()
+
+    latest_times = sorted(tsjson["timestamps_int"])
+    newest_data = str(latest_times[0])
+
+    urls = []
+    for ts in latest_times:
+        dt = datetime.datetime.strptime(str(ts), "%Y%m%d%H%M%S")
+        imageurl = f'{RAMMB_BASE_URL}imagery/{dt.strftime("%Y/%m/%d")}/{sat}---{sector}/{product}/{ts}/00/000_000.png'
+        urls.append((dt, imageurl))
+
+    return newest_data, urls
+
+
+def poll_images_thread():
 
     while True:
-        if last_check >= (
-            datetime.datetime.now() - datetime.timedelta(minutes=check_delay)
-        ):
-            time.sleep(2)
+        print("Polling for images...")
+        poll_images(mode="epic")
+        poll_images(mode="rammb")
+
+        if first_time[0]:
+            first_time[0] = False
+            gif_changed[0] = True
+            print("First set of images downloaded")
+
+        time.sleep(check_delay)
+
+
+def poll_images(mode="rammb"):
+    print(f"Checking for new images.")
+
+    if mode == "epic":
+        newest_date, urls = get_latest_epic_urls()
+    elif mode == "rammb":
+        newest_date, urls = get_latest_rammb_urls(sat="meteosat-0deg")
+    else:
+        raise Exception("Invalid method: " + mode)
+
+    new_data = False
+    ims = []
+    for i, (dt, imageurl) in enumerate(urls):
+
+        if imageurl in CACHE.inverse:
+            print(f" Cache hit {imageurl}")
+            continue
         else:
-            last_check = datetime.datetime.now()
-            print(str(last_check) + " Checking for new images.")
+            print(f" Downloading {imageurl}")
+            image_file = io.BytesIO(urlopen(imageurl).read())
+            image = pygame.image.load(image_file)
+            new_data = True
 
-            # Call the epic api
-            response = requests.get("https://epic.gsfc.nasa.gov/api/natural")
-            imjson = response.json()
-            newest_data = imjson[0]["date"]
+        if mode == "epic":
+            # Crop out the centre 830px square from the image to make globe fill screen
+            cropped = pygame.Surface((830, 830))
+            cropped.blit(image, (0, 0), (125, 125, 830, 830))
+            cropped = pygame.transform.scale(cropped, (480, 480))
+        else:
+            cropped = pygame.transform.scale(image, (480, 480))
 
-            print("Last data: " + last_data)
-            print("Newest data: " + newest_data)
+        current_date = dt.strftime("%a %d %b %Y %H:%M")
 
-            # If there are new images available, download them, then quickly display them all.
-            if last_data == newest_data:
-                print("No new images")
-            else:
-                print("Ooh! New Images!")
-                last_data = newest_data
+        # Set up the font and size
+        font = pygame.font.Font(None, 24)
+        text = font.render(current_date, True, (255, 255, 255))  # White color
 
-                images = []
-                for i, photo in enumerate(imjson):
-                    dt = datetime.datetime.strptime(photo["date"], "%Y-%m-%d %H:%M:%S")
-                    imageurl = (
-                        "https://epic.gsfc.nasa.gov/archive/natural/"
-                        + str(dt.year)
-                        + "/"
-                        + str(dt.month).zfill(2)
-                        + "/"
-                        + str(dt.day).zfill(2)
-                        + "/jpg/"
-                        + photo["image"]
-                        + ".jpg"
-                    )
+        # Get the text's rectangular area and position it at the bottom center
+        text_rect = text.get_rect()
+        text_rect.centerx = cropped.get_rect().centerx
+        text_rect.y = cropped.get_rect().bottom - 30
 
-                    # Create a surface object, draw image on it..
-                    image_file = io.BytesIO(urlopen(imageurl).read())
-                    image = pygame.image.load(image_file)
+        # Blit the text onto the image
+        cropped.blit(text, text_rect)
 
-                    # Crop out the centre 830px square from the image to make globe fill screen
-                    cropped = pygame.Surface((830, 830))
-                    cropped.blit(image, (0, 0), (125, 125, 830, 830))
-                    cropped = pygame.transform.scale(cropped, (480, 480))
+        impath = f"images/{mode}_{i}.jpg"
+        pygame.image.save(cropped, impath)
+        CACHE[impath] = imageurl
 
-                    current_date = dt.strftime("%a %d %b %Y %H:%M")
+    print(f"{len(urls)} images for {mode} saved")
 
-                    # Set up the font and size
-                    font = pygame.font.Font(None, 24)
-                    text = font.render(current_date, True, (255, 255, 255))  # White color
-
-                    # Get the text's rectangular area and position it at the bottom center
-                    text_rect = text.get_rect()
-                    text_rect.centerx = cropped.get_rect().centerx
-                    text_rect.y = cropped.get_rect().bottom - 30
-
-                    # Blit the text onto the image
-                    cropped.blit(text, text_rect)
-
-                    impath = f"images/{i}.jpg"
-                    pygame.image.save(cropped, impath)
-
-                    images.append(impath)
-
-                epic_images = images
-                if first_time:
-                    first_time = False
-                    with gif_selection_lock:
-                        selected_gif[0] = "epic"              
-                print("Images saved")
+    if new_data:
+        with gif_selection_lock:
+            print(f"Some new images detected")
+            gif_changed[0] = True
 
 
 def pygame_thread():
@@ -161,16 +203,19 @@ def pygame_thread():
                 pygame.quit()
 
         with gif_selection_lock:
-            if selected_gif[0] and selected_gif[0] != current_gif:
+            if selected_gif[0] and gif_changed[0]:
                 current_gif = selected_gif[0]
-                if selected_gif[0].startswith("epic"):
-                    gif_frames = load_epic_frames()
+                if selected_gif[0].startswith("epic") or selected_gif[0].startswith(
+                    "rammb"
+                ):
+                    gif_frames = load_image_frames()
                     frame_duration = rotate_delay * 1000
                 else:
                     gif_frames = load_gif_frames(current_gif)
                     frame_duration = 100
                 frame_index = 0
                 last_frame_time = current_time
+                gif_changed[0] = False
 
         if gif_frames:
             if frame_index == 0 or (current_time - last_frame_time > frame_duration):
@@ -194,16 +239,13 @@ def load_gif_frames(gif_name):
     return resized_frames
 
 
-with gif_selection_lock:
-    selected_gif[0] = "epic_loading"
+# Poll images in a background thread
+epic_thread = threading.Thread(target=poll_images_thread, daemon=True)
+epic_thread.start()
 
 # Run Flask in a background thread
 flask_thread = threading.Thread(target=run_flask_app, daemon=True)
 flask_thread.start()
-
-# Poll epi images in a background thread
-epic_thread = threading.Thread(target=poll_epic_images, daemon=True)
-epic_thread.start()
 
 # Run Pygame in the main thread
 pygame_thread()
