@@ -13,7 +13,7 @@ from bidict import bidict
 
 # Settings
 check_delay = 10*60 # seconds
-rotate_delay = 5  # seconds
+rotate_delay = 2  # seconds
 first_time = [True]
 CACHE = bidict()
 
@@ -96,13 +96,17 @@ def get_latest_epic_urls():
     return newest_data, urls
 
 
-def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor"):
+def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor", limit=10):
     RAMMB_BASE_URL = "https://rammb-slider.cira.colostate.edu/data/"
     timestamps_url = f"{RAMMB_BASE_URL}json/{sat}/{sector}/{product}/latest_times.json"
     response = requests.get(timestamps_url)
     tsjson = response.json()
 
     latest_times = sorted(tsjson["timestamps_int"])
+
+    if limit:
+        latest_times = latest_times[-limit:]
+
     newest_data = str(latest_times[0])
 
     urls = []
