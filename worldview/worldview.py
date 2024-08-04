@@ -10,6 +10,7 @@ import datetime
 import time
 from urllib.request import urlopen
 from bidict import bidict
+import pytz
 
 # Settings
 check_delay = 10*60 # seconds
@@ -164,7 +165,10 @@ def poll_images(mode="rammb"):
         else:
             cropped = pygame.transform.scale(image, (480, 480))
 
-        current_date = dt.strftime("%a %d %b %Y %H:%M")
+        utc_dt = dt.replace(tzinfo=pytz.UTC)
+        uk_tz = pytz.timezone('Europe/London')
+        uk_dt = utc_dt.astimezone(uk_tz)
+        current_date = uk_dt.strftime("%a %d %b %Y %H:%M")
 
         # Set up the font and size
         font = pygame.font.Font(None, 24)
