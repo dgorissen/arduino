@@ -28,7 +28,7 @@ const int WE_UNLOCK_HR = 9;
 const int WE_UNLOCK_MIN = 0;
 
 const int CAL_CHECK_INTERVAL = 1000*60*15;
-const int ALARM_DURATION = 1000*60*1;
+const int ALARM_DURATION = 1000*60*3;
 const int PHONE_DIST = 48.5;
 
 const int SERVO_PIN = 10;
