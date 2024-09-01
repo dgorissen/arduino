@@ -24,6 +24,8 @@ const int LOCK_HR = 19;
 const int LOCK_MIN = 30;
 const int UNLOCK_HR = 8;
 const int UNLOCK_MIN = 0;
+const int WE_UNLOCK_HR = 9;
+const int WE_UNLOCK_MIN = 0;
 
 const int CAL_CHECK_INTERVAL = 1000*60*15;
 const int ALARM_DURATION = 1000*60*1;
@@ -420,28 +422,33 @@ bool is_unlocked(){
   return !is_locked();
 }
 
-bool is_lock_time(const int now_h, const int now_m){
+bool is_lock_time(const int now_h, const int now_m, const bool is_weekend){
   bool res = false;
 
   // Assumes never locking more than 24h
 
+  const int lock_hr = LOCK_HR;
+  const int lock_min = LOCK_MIN;
+  const int unlock_hr = (is_weekend) ? WE_UNLOCK_HR : UNLOCK_HR;
+  const int unlock_min = (is_weekend) ? WE_UNLOCK_MIN : UNLOCK_MIN;
+
   // Are we locking for less than an hour
-  if (now_h == LOCK_HR == UNLOCK_HR){
-    res = (LOCK_MIN <= now_m <= UNLOCK_MIN);
+  if (now_h == lock_hr == unlock_hr){
+    res = (lock_min <= now_m <= unlock_min);
   
   // We span midnight
-  } else if(LOCK_HR > UNLOCK_HR){
+  } else if(lock_hr > unlock_hr){
     // cur is after lock but before midnight
-    if((now_h > LOCK_HR) && (now_h > UNLOCK_HR)){
+    if((now_h > lock_hr) && (now_h > unlock_hr)){
       res = true;
     // cur is after lock but before midnight, mins matter
-    }else if (((now_h == LOCK_HR) && (now_m >= LOCK_MIN)) && (now_h > UNLOCK_HR)){
+    }else if (((now_h == lock_hr) && (now_m >= lock_min)) && (now_h > unlock_hr)){
       res = true;
     // cur is after lock and after midnight
-    }else if((now_h < LOCK_HR) && (now_h < UNLOCK_HR)){
+    }else if((now_h < lock_hr) && (now_h < unlock_hr)){
       res = true;
     // cur is after lock and after midnight, mins matter
-    }else if ((now_h < LOCK_HR) && ((now_h == UNLOCK_HR) && (now_m <= UNLOCK_MIN))){
+    }else if ((now_h < lock_hr) && ((now_h == unlock_hr) && (now_m <= unlock_min))){
       res = true;
     } else {
       // Stay unlocked
@@ -449,7 +456,7 @@ bool is_lock_time(const int now_h, const int now_m){
     }
   // We dont span midnight
   } else {
-    res = ((now_h >= LOCK_HR) && (now_m >= LOCK_MIN)) && ((now_h <= UNLOCK_HR) && (now_m <= UNLOCK_MIN));
+    res = ((now_h >= lock_hr) && (now_m >= lock_min)) && ((now_h <= unlock_hr) && (now_m <= unlock_min));
   }
 
   Serial.print("Time locking calc: now_h=" + String(now_h) + " now_m=" + String(now_m) + " res=" + String(res));
@@ -477,7 +484,9 @@ bool is_time_to_lock(){
     return false;
   }
 
-  bool res = is_lock_time(timeinfo.tm_hour, timeinfo.tm_min);
+  // Check if today is a weekend (Saturday or Sunday)
+  bool isWeekend = (timeinfo.tm_wday == 0 || timeinfo.tm_wday == 6);
+  bool res = is_lock_time(timeinfo.tm_hour, timeinfo.tm_min, isWeekend);
 
   if(res){
     Serial.println("Time to lock!");
@@ -495,7 +504,9 @@ bool is_time_to_unlock(){
     return false;
   }
 
-  bool res = ! is_lock_time(timeinfo.tm_hour, timeinfo.tm_min);
+  // Check if today is a weekend (Saturday or Sunday)
+  bool isWeekend = (timeinfo.tm_wday == 0 || timeinfo.tm_wday == 6);
+  bool res = ! is_lock_time(timeinfo.tm_hour, timeinfo.tm_min, isWeekend);
 
   if(res){
     Serial.println("Time to unlock");
