@@ -320,7 +320,8 @@ bool is_phone_present_dist(){
 }
 
 bool is_phone_present(){
-  return is_phone_present_dist() && is_phone_present_switch();
+  //return is_phone_present_dist() && is_phone_present_switch();
+  return is_phone_present_switch();
 }
 
 void play_melody(int melody[], int durations[], int len){
