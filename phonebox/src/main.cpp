@@ -541,13 +541,22 @@ void loop_main() {
       Serial.println("Box locked !");
     } else {
       Serial.println("ERROR: Time to lock but lid is open or phone not detected");
-      if((alarm_start < 0) || ((millis() - alarm_start) < ALARM_DURATION)){
-        Serial.println("Sounding alarm");
-        alarm_start = millis();
-        alarm();
-      }else{
-        Serial.println("Alarm not listened to, giving up");
+    
+      // Check if the alarm needs to be started or is currently active within ALARM_DURATION.
+      if (alarm_start < 0) {
+          // Alarm has not started yet, initialize it.
+          Serial.println("Sounding alarm");
+          alarm_start = millis();
+          alarm();  // Function to trigger the alarm
+      } else if ((millis() - alarm_start) < ALARM_DURATION) {
+          // Alarm is currently active
+          Serial.println("Sounding alarm");
+          alarm();  // Continue sounding the alarm
+      } else {
+          // Alarm duration has passed, give up on the alarm.
+          Serial.println("Alarm not listened to, giving up");
       }
+  
     }
   } else if(is_locked() && is_time_to_unlock()){
     unlock_lid();
