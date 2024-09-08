@@ -113,6 +113,8 @@ def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor",
 
     newest_data = str(latest_times[0])
 
+    print(f"Checked {timestamps_url}, latest data available is {newest_data}")
+
     x_tiles = range(0, ZOOM_TILES[zoom])
     y_tiles = range(0, ZOOM_TILES[zoom])
     if tile_x_filter: x_tiles = [x for x in x_tiles if x in tile_x_filter]
@@ -132,6 +134,7 @@ def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor",
 def poll_images_thread():
 
     while True:
+        print(datetime.datetime.now())
         print("Polling for images...")
         poll_images(mode="epic")
         poll_images(mode="rammb")
