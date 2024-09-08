@@ -13,7 +13,7 @@ from bidict import bidict
 import pytz
 
 # Settings
-check_delay = 10*60 # seconds
+check_delay = 15*60 # seconds
 rotate_delay = 2  # seconds
 first_time = [True]
 CACHE = bidict()
