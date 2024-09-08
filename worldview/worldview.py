@@ -14,7 +14,7 @@ import pytz
 
 # Settings
 check_delay = 15*60 # seconds
-rotate_delay = 2  # seconds
+rotate_delay = 4  # seconds
 first_time = [True]
 CACHE = bidict()
 
@@ -33,6 +33,8 @@ pygame.display.set_caption("GIF Viewer")
 gif_selection_lock = threading.Lock()
 selected_gif = ["rammb"]
 gif_changed = [True]
+
+RAMMB_BASE_URL = "https://rammb-slider.cira.colostate.edu/data/"
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -97,10 +99,10 @@ def get_latest_epic_urls():
     return newest_data, urls
 
 
-def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor", limit=10,
+def get_latest_rammb_urls(sat="meteosat-0deg", sector="full_disk", product="geocolor", limit=10,
                           zoom=0, tile_x_filter=[], tile_y_filter=[]):
 
-    RAMMB_BASE_URL = "https://rammb-slider.cira.colostate.edu/data/"
+    TILE_SIZE = 464
     ZOOM_TILES = [1, 2, 4, 8, 16]
     timestamps_url = f"{RAMMB_BASE_URL}json/{sat}/{sector}/{product}/latest_times.json"
     response = requests.get(timestamps_url)
@@ -111,33 +113,38 @@ def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor",
     if limit:
         latest_times = latest_times[-limit:]
 
-    newest_data = str(latest_times[0])
+    newest_data = str(latest_times[-1])
 
-    print(f"Checked {timestamps_url}, latest data available is {newest_data}")
+    print(f"Checked {timestamps_url}, all data is {latest_times}")
+    print(f"latest data available is {newest_data}")
 
     x_tiles = range(0, ZOOM_TILES[zoom])
     y_tiles = range(0, ZOOM_TILES[zoom])
     if tile_x_filter: x_tiles = [x for x in x_tiles if x in tile_x_filter]
-    if tile_y_filter: y_tiles = [x for x in x_tiles if x in tile_x_filter]
+    if tile_y_filter: y_tiles = [x for x in y_tiles if x in tile_y_filter]
+    n_x_tiles = len(x_tiles)
+    n_y_tiles = len(y_tiles)
 
     urls = []
     for ts in latest_times:
         dt = datetime.datetime.strptime(str(ts), "%Y%m%d%H%M%S")
+        tiles = []
         for tile_x in x_tiles:
             for tile_y in y_tiles:
                 imageurl = f'{RAMMB_BASE_URL}imagery/{dt.strftime("%Y/%m/%d")}/{sat}---{sector}/{product}/{ts}/{zoom:02}/{tile_y:03}_{tile_x:03}.png'
-                urls.append((dt, imageurl))
+                tiles.append(imageurl)
+    
+        urls.append((dt, tiles, (len(tiles), n_x_tiles, n_y_tiles, TILE_SIZE)))
 
     return newest_data, urls
-
 
 def poll_images_thread():
 
     while True:
         print(datetime.datetime.now())
         print("Polling for images...")
-        poll_images(mode="epic")
-        poll_images(mode="rammb")
+        # poll_epic_images()
+        poll_rammb_images()
 
         if first_time[0]:
             first_time[0] = False
@@ -146,60 +153,149 @@ def poll_images_thread():
 
         time.sleep(check_delay)
 
+def stitch_tiles(tile_urls, tile_size, tiles_x, tiles_y):
+    # Create a blank canvas for the final image
+    final_image = pygame.Surface((tiles_x * tile_size, tiles_y * tile_size))
 
-def poll_images(mode="rammb"):
+    # Loop through the tiles and paste them in the correct position
+    for i, url in enumerate(tile_urls):
+        # Fetch the image from the URL
+        print(f"Downloading tile {url.replace(RAMMB_BASE_URL,"")}")
+        response = requests.get(url)
+        tile_image = pygame.image.load(io.BytesIO(response.content))
+
+        # Calculate the row and column positions (assuming row-major order)
+        col = i // tiles_y 
+        row = i % tiles_y 
+
+        # Calculate the pixel position in the final image
+        x_pos = col * tile_size
+        y_pos = row * tile_size
+
+        # Paste the tile image into the final image
+        final_image.blit(tile_image, (x_pos, y_pos))
+
+    return final_image
+
+def overlay_date(dt, image):
+    utc_dt = dt.replace(tzinfo=pytz.UTC)
+    uk_tz = pytz.timezone('Europe/London')
+    uk_dt = utc_dt.astimezone(uk_tz)
+    current_date = uk_dt.strftime("%a %d %b %Y %H:%M")
+
+    # Set up the font and size
+    font = pygame.font.Font(None, 24)
+    text = font.render(current_date, True, (255, 255, 255))  # White color
+
+    # Get the text's rectangular area and position it at the bottom center
+    text_rect = text.get_rect()
+    text_rect.centerx = image.get_rect().centerx
+    text_rect.y = image.get_rect().bottom - 30
+
+    # Blit the text onto the image
+    image.blit(text, text_rect)
+
+    return image
+
+def poll_epic_images():
     print(f"Checking for new images.")
 
-    if mode == "epic":
-        newest_date, urls = get_latest_epic_urls()
-    elif mode == "rammb":
-        newest_date, urls = get_latest_rammb_urls(sat="meteosat-0deg")
-    else:
-        raise Exception("Invalid method: " + mode)
+    newest_date, urls = get_latest_epic_urls()
 
     new_data = False
     ims = []
     for i, (dt, imageurl) in enumerate(urls):
 
         if imageurl in CACHE.inverse:
-            print(f" Cache hit {imageurl}")
+            # We've handled this url already
+            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,"")}")
             continue
-        else:
-            print(f" Downloading {imageurl}")
-            image_file = io.BytesIO(urlopen(imageurl).read())
-            image = pygame.image.load(image_file)
-            new_data = True
 
-        if mode == "epic":
-            # Crop out the centre 830px square from the image to make globe fill screen
-            cropped = pygame.Surface((830, 830))
-            cropped.blit(image, (0, 0), (125, 125, 830, 830))
-            cropped = pygame.transform.scale(cropped, (480, 480))
-        else:
-            cropped = pygame.transform.scale(image, (480, 480))
+        new_data = True
 
-        utc_dt = dt.replace(tzinfo=pytz.UTC)
-        uk_tz = pytz.timezone('Europe/London')
-        uk_dt = utc_dt.astimezone(uk_tz)
-        current_date = uk_dt.strftime("%a %d %b %Y %H:%M")
+        # Simple case, no tiling
+        print(f" Downloading simple image {imageurl.replace(RAMMB_BASE_URL,"")}")
+        image_file = io.BytesIO(urlopen(imageurl).read())
+        image = pygame.image.load(image_file)
+    
+        # Crop out the centre 830px square from the image to make globe fill screen
+        cropped = pygame.Surface((830, 830))
+        cropped.blit(image, (0, 0), (125, 125, 830, 830))
+        cropped = pygame.transform.scale(cropped, (480, 480))
 
-        # Set up the font and size
-        font = pygame.font.Font(None, 24)
-        text = font.render(current_date, True, (255, 255, 255))  # White color
-
-        # Get the text's rectangular area and position it at the bottom center
-        text_rect = text.get_rect()
-        text_rect.centerx = cropped.get_rect().centerx
-        text_rect.y = cropped.get_rect().bottom - 30
-
-        # Blit the text onto the image
-        cropped.blit(text, text_rect)
-
-        impath = f"images/{mode}_{i}.jpg"
+        cropped = overlay_date(dt, cropped)
+        impath = f"images/epic_{i}.jpg"
         pygame.image.save(cropped, impath)
         CACHE[impath] = imageurl
 
-    print(f"{len(urls)} images for {mode} saved")
+    print(f"{len(urls)} images for epic saved")
+
+    if new_data:
+        with gif_selection_lock:
+            print(f"Some new images detected")
+            gif_changed[0] = True
+
+
+def poll_rammb_images():
+    print(f"Checking for new images.")
+    new_data = False
+    i = -1
+    newest_date, world_urls = get_latest_rammb_urls()
+    
+    for dt, tiles, (nt, nx, ny, tile_size) in world_urls:
+        i += 1
+        imageurl = tiles[0]
+        if imageurl in CACHE.inverse:
+            # We've handled this url or set of tiles already
+            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,"")}")
+            continue
+        
+        new_data = True
+
+        # Simple case, no tiling
+        print(f" Downloading simple image {imageurl.replace(RAMMB_BASE_URL,"")}")
+        image_file = io.BytesIO(urlopen(imageurl).read())
+        image = pygame.image.load(image_file)
+        cropped = pygame.transform.scale(image, (480, 480))
+
+        cropped = overlay_date(dt, cropped)
+        impath = f"images/rammb_{i}.jpg"
+        pygame.image.save(cropped, impath)
+        CACHE[impath] = imageurl
+
+    print(f"{len(world_urls)} rammb world images saved")
+
+    newest_date, europe_urls = get_latest_rammb_urls(zoom=3,
+                                           tile_x_filter=range(3,6),
+                                           tile_y_filter=range(0,2))
+    
+    for dt, tiles, (nt, nx, ny, tile_size) in europe_urls:
+        i += 1  
+        imageurl = tiles[0]
+        # Add a prefix to separate them from the world urls
+        if ("eu_" + imageurl) in CACHE.inverse:
+            # We've handled this url or set of tiles already
+            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,"")}")
+            continue
+        
+        new_data = True
+
+        # Set of image tiles
+        print(f" Downloading tiled image")
+        image = stitch_tiles(tiles, tile_size, nx, ny)
+        # Crop out Europe (X, Y, Width, Height)
+        crop_box = (102, 21, 102 + 879, 21 + 879)
+        crop_rect = pygame.Rect(*crop_box)
+        # Crop the image using subsurface
+        cropped = image.subsurface(crop_rect)
+        cropped = pygame.transform.scale(cropped, (480, 480))
+
+        cropped = overlay_date(dt, cropped)
+        impath = f"images/rammb_{i}.jpg"
+        pygame.image.save(cropped, impath)
+        CACHE[impath] = ("eu_" + imageurl)
+
+    print(f"{len(europe_urls)} images for ramb europe saved")
 
     if new_data:
         with gif_selection_lock:
