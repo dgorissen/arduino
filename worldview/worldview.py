@@ -97,8 +97,11 @@ def get_latest_epic_urls():
     return newest_data, urls
 
 
-def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor", limit=10):
+def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor", limit=10,
+                          zoom=0, tile_x_filter=[], tile_y_filter=[]):
+
     RAMMB_BASE_URL = "https://rammb-slider.cira.colostate.edu/data/"
+    ZOOM_TILES = [1, 2, 4, 8, 16]
     timestamps_url = f"{RAMMB_BASE_URL}json/{sat}/{sector}/{product}/latest_times.json"
     response = requests.get(timestamps_url)
     tsjson = response.json()
@@ -110,11 +113,18 @@ def get_latest_rammb_urls(sat="goes-16", sector="full_disk", product="geocolor",
 
     newest_data = str(latest_times[0])
 
+    x_tiles = range(0, ZOOM_TILES[zoom])
+    y_tiles = range(0, ZOOM_TILES[zoom])
+    if tile_x_filter: x_tiles = [x for x in x_tiles if x in tile_x_filter]
+    if tile_y_filter: y_tiles = [x for x in x_tiles if x in tile_x_filter]
+
     urls = []
     for ts in latest_times:
         dt = datetime.datetime.strptime(str(ts), "%Y%m%d%H%M%S")
-        imageurl = f'{RAMMB_BASE_URL}imagery/{dt.strftime("%Y/%m/%d")}/{sat}---{sector}/{product}/{ts}/00/000_000.png'
-        urls.append((dt, imageurl))
+        for tile_x in x_tiles:
+            for tile_y in y_tiles:
+                imageurl = f'{RAMMB_BASE_URL}imagery/{dt.strftime("%Y/%m/%d")}/{sat}---{sector}/{product}/{ts}/{zoom:02}/{tile_y:03}_{tile_x:03}.png'
+                urls.append((dt, imageurl))
 
     return newest_data, urls
 
