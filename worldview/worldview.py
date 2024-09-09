@@ -160,7 +160,7 @@ def stitch_tiles(tile_urls, tile_size, tiles_x, tiles_y):
     # Loop through the tiles and paste them in the correct position
     for i, url in enumerate(tile_urls):
         # Fetch the image from the URL
-        print(f"Downloading tile {url.replace(RAMMB_BASE_URL,"")}")
+        print(f"Downloading tile {url.replace(RAMMB_BASE_URL,'')}")
         response = requests.get(url)
         tile_image = pygame.image.load(io.BytesIO(response.content))
 
@@ -208,13 +208,13 @@ def poll_epic_images():
 
         if imageurl in CACHE.inverse:
             # We've handled this url already
-            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,"")}")
+            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
             continue
 
         new_data = True
 
         # Simple case, no tiling
-        print(f" Downloading simple image {imageurl.replace(RAMMB_BASE_URL,"")}")
+        print(f" Downloading simple image {imageurl.replace(RAMMB_BASE_URL,'')}")
         image_file = io.BytesIO(urlopen(imageurl).read())
         image = pygame.image.load(image_file)
     
@@ -247,13 +247,13 @@ def poll_rammb_images():
         imageurl = tiles[0]
         if imageurl in CACHE.inverse:
             # We've handled this url or set of tiles already
-            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,"")}")
+            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
             continue
         
         new_data = True
 
         # Simple case, no tiling
-        print(f" Downloading simple image {imageurl.replace(RAMMB_BASE_URL,"")}")
+        print(f" Downloading simple image {imageurl.replace(RAMMB_BASE_URL,'')}")
         image_file = io.BytesIO(urlopen(imageurl).read())
         image = pygame.image.load(image_file)
         cropped = pygame.transform.scale(image, (480, 480))
@@ -275,7 +275,7 @@ def poll_rammb_images():
         # Add a prefix to separate them from the world urls
         if ("eu_" + imageurl) in CACHE.inverse:
             # We've handled this url or set of tiles already
-            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,"")}")
+            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
             continue
         
         new_data = True
