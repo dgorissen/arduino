@@ -434,8 +434,8 @@ bool is_lock_time(const int now_h, const int now_m, const bool is_weekend){
   const int unlock_min = (is_weekend) ? WE_UNLOCK_MIN : UNLOCK_MIN;
 
   // Are we locking for less than an hour
-  if (now_h == lock_hr == unlock_hr){
-    res = (lock_min <= now_m <= unlock_min);
+  if ((now_h == lock_hr) && (lock_hr == unlock_hr)){
+    res = ((lock_min <= now_m) && (now_m <= unlock_min));
   
   // We span midnight
   } else if(lock_hr > unlock_hr){
