@@ -17,8 +17,7 @@ const char* password   = "dummy";
 const char* CAL_SECRET = "dummy";
 
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 0*60*60;
-const int   daylightOffset_sec = 3600;
+const char* timezone = "GMT0BST,M3.5.0/1,M10.5.0/2";
 
 const int LOCK_HR = 19;
 const int LOCK_MIN = 30;
@@ -222,7 +221,7 @@ void connect_to_wifi(){
   Serial.println(" CONNECTED");
 
   //init and get the time
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  configTzTime(timezone, ntpServer);
 }
 
 
