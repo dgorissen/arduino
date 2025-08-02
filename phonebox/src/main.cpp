@@ -22,9 +22,9 @@ const char* timezone = "GMT0BST,M3.5.0/1,M10.5.0/2";
 const int LOCK_HR = 19;
 const int LOCK_MIN = 30;
 const int UNLOCK_HR = 8;
-const int UNLOCK_MIN = 0;
-const int WE_UNLOCK_HR = 9;
-const int WE_UNLOCK_MIN = 30;
+const int UNLOCK_MIN = 10;
+const int WE_UNLOCK_HR = 10;
+const int WE_UNLOCK_MIN = 00;
 
 const int CAL_CHECK_INTERVAL = 1000*60*15;
 const int ALARM_DURATION = 1000*60*3;
