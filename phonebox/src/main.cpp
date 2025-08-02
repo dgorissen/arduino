@@ -11,7 +11,9 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <Preferences.h>
 
+Preferences prefs;
 const char* ssid       = "dummy";
 const char* password   = "dummy";
 const char* CAL_SECRET = "dummy";
@@ -97,6 +99,8 @@ class MyCallbacks: public BLECharacteristicCallbacks {
           Serial.print(rxValue);
           Serial.println("'");
         }
+
+        prefs.putBool("ble_override", ble_override);
       }
     }
 };
@@ -237,12 +241,37 @@ void setup_dist_sensor(){
   dist_sensor.startContinuous(50);
 }
 
+void unlock_servo(){
+  for (int pos = 180; pos >= 5; pos -= 1){
+    ESP32_ISR_Servos.setPosition(servoIndex1,pos);
+    delay(10);
+  }
+  Serial.println("Servo unlocked");
+}
+
+void lock_servo(){
+  for (int pos = 5; pos <= 180; pos += 1){
+    ESP32_ISR_Servos.setPosition(servoIndex1,pos);
+    delay(10);
+  }
+  Serial.println("Servo locked");
+}
+
 void setup_servo(){
   ESP32_ISR_Servos.useTimer(3);
   servoIndex1 = ESP32_ISR_Servos.setupServo(SERVO_PIN, 500, 2500);
   
   if (servoIndex1 != -1){
     Serial.println(F("Servo setup OK"));
+    delay(20);
+    // Restore servo position based on saved state
+    if (locked) {
+      lock_servo();
+      Serial.println("Restored servo to locked position (180)");
+    } else {
+      unlock_servo();
+      Serial.println("Restored servo to unlocked position (5)");
+    }
   }  else {
     Serial.println(F("Servo setup failed"));
   }
@@ -254,6 +283,13 @@ void setup() {
   strip.setBrightness(50);
   strip.fill(orange);
   strip.show();
+
+  prefs.begin("phonebox", false); 
+  locked = prefs.getBool("locked_state", locked); 
+  ble_override = prefs.getBool("ble_override", ble_override); 
+
+  Serial.println("Locked state read from prefs at startup: " + String(locked));
+  Serial.println("BLE override read from prefs at startup: " + String(ble_override));
 
   int max_wait = 8;
   int i = 0;
@@ -386,12 +422,10 @@ void lock_lid(){
     Serial.println("Locking lid");
   }
 
-  for (int pos = 5; pos <= 180; pos += 1){
-    ESP32_ISR_Servos.setPosition(servoIndex1,pos);
-    delay(10);
-  }
+  lock_servo();
 
   locked = true;
+  prefs.putBool("locked_state", locked);
   lock_tone();
   show_colour(red);
 }
@@ -404,12 +438,10 @@ void unlock_lid(){
     Serial.println("Unlocking lid");
   }
 
-  for (int pos = 180; pos >= 5; pos -= 1){
-    ESP32_ISR_Servos.setPosition(servoIndex1,pos);
-    delay(10);
-  }
+  unlock_servo();
 
   locked = false;
+  prefs.putBool("locked_state", locked);
   unlock_tone();
   show_colour(green);
 }
@@ -459,7 +491,7 @@ bool is_lock_time(const int now_h, const int now_m, const bool is_weekend){
     res = ((now_h >= lock_hr) && (now_m >= lock_min)) && ((now_h <= unlock_hr) && (now_m <= unlock_min));
   }
 
-  Serial.print("Time locking calc: now_h=" + String(now_h) + " now_m=" + String(now_m) + " res=" + String(res));
+  Serial.println("Time locking calc: now_h=" + String(now_h) + " now_m=" + String(now_m) + " res=" + String(res));
 
   return res;
 }
