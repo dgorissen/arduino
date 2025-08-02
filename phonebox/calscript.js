@@ -14,10 +14,10 @@ function doGet(e) {
   var start = new Date(); start.setHours(0, 0, 0);  // start at midnight
   const oneday = 24*3600000; // [msec]
   const stop = new Date(start.getTime() + oneday); // the next 24 hours
-
+  
   var kids_events = kids_cal.getEvents(start, stop)
                  .filter((x) => {
-                    var r = x.isAllDayEvent() && x.getTitle().toLowerCase() === "kids";
+                    var r = x.isAllDayEvent() && x.getTitle().toLowerCase().trim() === "kids";
                     return r;
                   });
 
