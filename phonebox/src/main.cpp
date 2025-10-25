@@ -86,15 +86,20 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         Serial.print("Received BLE Value: ");
         Serial.println(rxValue);
 
-        if(rxValue.equals("U\n")){
-          ble_override = true;
-          unlock_lid();
-        }else if(rxValue.equals("L\n")){
-          ble_override = true;
+        // Normalize input
+        rxValue.trim();
+        rxValue.toUpperCase();
+
+        if (rxValue.equals("L")) {
+          ble_override = true;   // enter manual override: stay locked until U or C
           lock_lid();
-        }else if(rxValue.equals("C\n")){
-          ble_override = false;
-        }else{
+        } else if (rxValue.equals("U")) {
+          ble_override = false;  // exit override and unlock
+          unlock_lid();
+        } else if (rxValue.equals("C")) {
+          ble_override = false;  // exit override only; keep current state
+          Serial.println("BLE override cleared; resuming time-based logic");
+        } else {
           Serial.print("Invalid BLE command, ignoring: '");
           Serial.print(rxValue);
           Serial.println("'");
