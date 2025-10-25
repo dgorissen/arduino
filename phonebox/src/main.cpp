@@ -53,6 +53,7 @@ int servoIndex1 = -1;
 int cal_res = -1;
 int last_cal_check = -1;
 long alarm_start = -1;
+long tamper_alarm_start = -1;
 bool ble_override = false;
 
 BLEServer *pServer = NULL;
@@ -559,8 +560,32 @@ void alarm(){
   alarm_tone();
 }
 
+void detect_tamper_lid_open(){
+  // If the box is logically locked but the lid sensor reports open, trigger alarm
+  if (is_locked() && !is_lid_closed()) {
+    Serial.println("TAMPER: Lid opened while locked");
+
+    if (tamper_alarm_start < 0) {
+      // Start tamper alarm window
+      tamper_alarm_start = millis();
+      alarm();
+    } else if ((millis() - tamper_alarm_start) < ALARM_DURATION) {
+      // Continue sounding alarm while within timeout window
+      alarm();
+    } else {
+      // Timeout expired; suppress further alarm until condition clears
+    }
+  } else {
+    // Reset timer once tamper condition is no longer present
+    tamper_alarm_start = -1;
+  }
+}
+
 void loop_main() {
   printLocalTime();
+
+  // Tamper detection should run regardless of BLE override or schedule
+  detect_tamper_lid_open();
 
   iter_ble();
   delay(5000);
