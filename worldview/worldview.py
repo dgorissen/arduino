@@ -8,7 +8,7 @@ import requests
 import io
 import datetime
 import time
-from urllib.request import urlopen
+from functools import lru_cache
 from bidict import bidict
 import pytz
 
@@ -17,6 +17,15 @@ check_delay = 15*60 # seconds
 rotate_delay = 4  # seconds
 first_time = [True]
 CACHE = bidict()
+CACHE_LOCK = threading.Lock()
+
+# Pi Zero-friendly caches: keep them small to avoid memory pressure.
+GIF_FRAME_CACHE_SIZE = 4
+IMAGE_SURFACE_CACHE_SIZE = 8
+_IMAGE_PATHS_CACHE = {}  # mode -> (signature, [paths])
+
+HTTP_TIMEOUT_S = 20
+HTTP = requests.Session()
 
 # Initialize Flask and Pygame
 app = Flask(__name__)
@@ -70,13 +79,76 @@ def load_image_frames():
         return [pygame.image.load("images/loading.jpg")]
 
     mode = selected_gif[0]
-    image_filenames = [x[0] for x in sorted(CACHE.items(), key=lambda x: x[1]) if mode in x[0]]
-    frames = [pygame.image.load(im) for im in image_filenames]
-    return frames
+    with CACHE_LOCK:
+        image_filenames = [
+            impath
+            for (impath, src) in sorted(CACHE.items(), key=lambda x: x[1])
+            if mode in impath
+        ]
+
+    # Signature based on filenames + mtimes so we can reuse the resolved list
+    signature_parts = []
+    existing_files = []
+    for impath in image_filenames:
+        try:
+            signature_parts.append((impath, os.path.getmtime(impath)))
+            existing_files.append(impath)
+        except FileNotFoundError:
+            # If a file was pruned/overwritten between building the list and now,
+            # just skip it and let the next refresh rebuild cleanly.
+            continue
+    signature = tuple(signature_parts)
+
+    cached = _IMAGE_PATHS_CACHE.get(mode)
+    if cached and cached[0] == signature:
+        return cached[1]
+
+    # On constrained devices: return paths, and load surfaces lazily with a tiny LRU.
+    _IMAGE_PATHS_CACHE[mode] = (signature, existing_files)
+    return existing_files
+
+
+@lru_cache(maxsize=IMAGE_SURFACE_CACHE_SIZE)
+def _load_surface_cached(image_path: str, mtime: float):
+    surf = pygame.image.load(image_path)
+    # `convert()` makes blitting much faster because it matches the display format.
+    if image_path.lower().endswith(".png"):
+        return surf.convert_alpha()
+    return surf.convert()
+
+
+def _prune_cached_images(prefix: str, expected_paths: set[str]) -> int:
+    """
+    Remove stale CACHE entries (and their files) for a given filename prefix.
+    This prevents showing old frames when the upstream returns fewer images.
+    """
+    stale_paths: list[str] = []
+    with CACHE_LOCK:
+        for impath in list(CACHE.keys()):
+            if impath.startswith(prefix) and impath not in expected_paths:
+                stale_paths.append(impath)
+                try:
+                    del CACHE[impath]
+                except KeyError:
+                    pass
+
+    for impath in stale_paths:
+        try:
+            os.remove(impath)
+        except FileNotFoundError:
+            pass
+
+    # Invalidate in-memory loaded frames for the corresponding mode
+    # (mode string is embedded in the prefix, e.g. "images/epic_")
+    if "epic_" in prefix:
+        _IMAGE_PATHS_CACHE.pop("epic", None)
+    if "rammb_" in prefix:
+        _IMAGE_PATHS_CACHE.pop("rammb", None)
+    return len(stale_paths)
 
 
 def get_latest_epic_urls():
-    response = requests.get("https://epic.gsfc.nasa.gov/api/natural")
+    response = HTTP.get("https://epic.gsfc.nasa.gov/api/natural", timeout=HTTP_TIMEOUT_S)
     imjson = response.json()
     newest_data = imjson[0]["date"]
 
@@ -105,7 +177,7 @@ def get_latest_rammb_urls(sat="meteosat-0deg", sector="full_disk", product="geoc
     TILE_SIZE = 464
     ZOOM_TILES = [1, 2, 4, 8, 16]
     timestamps_url = f"{RAMMB_BASE_URL}json/{sat}/{sector}/{product}/latest_times.json"
-    response = requests.get(timestamps_url)
+    response = HTTP.get(timestamps_url, timeout=HTTP_TIMEOUT_S)
     tsjson = response.json()
 
     latest_times = sorted(tsjson["timestamps_int"])
@@ -161,8 +233,8 @@ def stitch_tiles(tile_urls, tile_size, tiles_x, tiles_y):
     for i, url in enumerate(tile_urls):
         # Fetch the image from the URL
         print(f"Downloading tile {url.replace(RAMMB_BASE_URL,'')}")
-        response = requests.get(url)
-        tile_image = pygame.image.load(io.BytesIO(response.content))
+        response = HTTP.get(url, timeout=HTTP_TIMEOUT_S)
+        tile_image = pygame.image.load(io.BytesIO(response.content)).convert()
 
         # Calculate the row and column positions (assuming row-major order)
         col = i // tiles_y 
@@ -206,7 +278,9 @@ def poll_epic_images():
     ims = []
     for i, (dt, imageurl) in enumerate(urls):
 
-        if imageurl in CACHE.inverse:
+        with CACHE_LOCK:
+            seen = imageurl in CACHE.inverse
+        if seen:
             # We've handled this url already
             print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
             continue
@@ -226,7 +300,13 @@ def poll_epic_images():
         cropped = overlay_date(dt, cropped)
         impath = f"images/epic_{i}.jpg"
         pygame.image.save(cropped, impath)
-        CACHE[impath] = imageurl
+        with CACHE_LOCK:
+            CACHE[impath] = imageurl
+
+    expected = {f"images/epic_{i}.jpg" for i in range(len(urls))}
+    pruned = _prune_cached_images("images/epic_", expected)
+    if pruned:
+        new_data = True
 
     print(f"{len(urls)} images for epic saved")
 
@@ -245,7 +325,9 @@ def poll_rammb_images():
     for dt, tiles, (nt, nx, ny, tile_size) in world_urls:
         i += 1
         imageurl = tiles[0]
-        if imageurl in CACHE.inverse:
+        with CACHE_LOCK:
+            seen = imageurl in CACHE.inverse
+        if seen:
             # We've handled this url or set of tiles already
             print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
             continue
@@ -261,7 +343,8 @@ def poll_rammb_images():
         cropped = overlay_date(dt, cropped)
         impath = f"images/rammb_{i}.jpg"
         pygame.image.save(cropped, impath)
-        CACHE[impath] = imageurl
+        with CACHE_LOCK:
+            CACHE[impath] = imageurl
 
     print(f"{len(world_urls)} rammb world images saved")
 
@@ -273,7 +356,9 @@ def poll_rammb_images():
         i += 1  
         imageurl = tiles[0]
         # Add a prefix to separate them from the world urls
-        if ("eu_" + imageurl) in CACHE.inverse:
+        with CACHE_LOCK:
+            seen = ("eu_" + imageurl) in CACHE.inverse
+        if seen:
             # We've handled this url or set of tiles already
             print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
             continue
@@ -293,9 +378,17 @@ def poll_rammb_images():
         cropped = overlay_date(dt, cropped)
         impath = f"images/rammb_{i}.jpg"
         pygame.image.save(cropped, impath)
-        CACHE[impath] = ("eu_" + imageurl)
+        with CACHE_LOCK:
+            CACHE[impath] = ("eu_" + imageurl)
 
     print(f"{len(europe_urls)} images for ramb europe saved")
+
+    # Prune any stale `images/rammb_*.jpg` that were cached previously but not
+    # produced in this poll cycle (e.g. if upstream returns fewer frames).
+    expected = {f"images/rammb_{j}.jpg" for j in range(i + 1)}
+    pruned = _prune_cached_images("images/rammb_", expected)
+    if pruned:
+        new_data = True
 
     if new_data:
         with gif_selection_lock:
@@ -306,7 +399,7 @@ def poll_rammb_images():
 def pygame_thread():
     running = True
     current_gif = ""
-    gif_frames = []
+    gif_frames = []  # can be Surfaces (GIFs/loading) or file paths (epic/rammb)
     frame_index = 0
     frame_duration = -1
     last_frame_time = pygame.time.get_ticks()
@@ -339,21 +432,39 @@ def pygame_thread():
                 frame_index = (frame_index + 1) % len(gif_frames)
                 last_frame_time = current_time
                 screen.fill((0, 0, 0))
-                screen.blit(gif_frames[frame_index], (0, 0))
+                frame = gif_frames[frame_index]
+                if isinstance(frame, str):
+                    try:
+                        mtime = os.path.getmtime(frame)
+                        frame_surf = _load_surface_cached(frame, mtime)
+                    except FileNotFoundError:
+                        # If a frame disappears (prune/refresh), force reload on next tick.
+                        with gif_selection_lock:
+                            gif_changed[0] = True
+                        continue
+                    screen.blit(frame_surf, (0, 0))
+                else:
+                    screen.blit(frame, (0, 0))
                 pygame.display.flip()
 
 
 def load_gif_frames(gif_name):
     image_path = os.path.join("gifs", gif_name)
+    mtime = os.path.getmtime(image_path)
+    return list(_load_gif_frames_cached(image_path, mtime))
+
+
+@lru_cache(maxsize=GIF_FRAME_CACHE_SIZE)
+def _load_gif_frames_cached(image_path: str, mtime: float):
+    # `mtime` is part of the cache key so edits to a GIF invalidate the cache.
     pil_image = Image.open(image_path)
-    frames = [
-        pygame.image.fromstring(
+    frames = []
+    for frame in ImageSequence.Iterator(pil_image):
+        surf = pygame.image.fromstring(
             frame.copy().convert("RGBA").tobytes(), frame.size, "RGBA"
         )
-        for frame in ImageSequence.Iterator(pil_image)
-    ]
-    resized_frames = [pygame.transform.scale(frame, (480, 480)) for frame in frames]
-    return resized_frames
+        frames.append(pygame.transform.scale(surf, (480, 480)))
+    return tuple(frames)
 
 
 # Poll images in a background thread
