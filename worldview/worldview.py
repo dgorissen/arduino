@@ -8,9 +8,17 @@ import requests
 import io
 import datetime
 import time
+import logging
 from functools import lru_cache
 from bidict import bidict
 import pytz
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+log = logging.getLogger("worldview")
 
 # Settings
 check_delay = 15*60 # seconds
@@ -25,6 +33,7 @@ IMAGE_SURFACE_CACHE_SIZE = 8
 _IMAGE_PATHS_CACHE = {}  # mode -> (signature, [paths])
 
 HTTP_TIMEOUT_S = 20
+ERROR_BACKOFF_S = 60
 HTTP = requests.Session()
 
 # Initialize Flask and Pygame
@@ -187,8 +196,8 @@ def get_latest_rammb_urls(sat="meteosat-0deg", sector="full_disk", product="geoc
 
     newest_data = str(latest_times[-1])
 
-    print(f"Checked {timestamps_url}, all data is {latest_times}")
-    print(f"latest data available is {newest_data}")
+    log.info("Checked %s, all data is %s", timestamps_url, latest_times)
+    log.info("latest data available is %s", newest_data)
 
     x_tiles = range(0, ZOOM_TILES[zoom])
     y_tiles = range(0, ZOOM_TILES[zoom])
@@ -213,17 +222,21 @@ def get_latest_rammb_urls(sat="meteosat-0deg", sector="full_disk", product="geoc
 def poll_images_thread():
 
     while True:
-        print(datetime.datetime.now())
-        print("Polling for images...")
-        # poll_epic_images()
-        poll_rammb_images()
+        try:
+            log.info("Polling for images...")
+            # poll_epic_images()
+            poll_rammb_images()
 
-        if first_time[0]:
-            first_time[0] = False
-            gif_changed[0] = True
-            print("First set of images downloaded")
+            if first_time[0]:
+                first_time[0] = False
+                gif_changed[0] = True
+                log.info("First set of images downloaded")
 
-        time.sleep(check_delay)
+            log.info("Poll cycle complete, next check in %ds", check_delay)
+            time.sleep(check_delay)
+        except Exception:
+            log.exception("Error in poll cycle, will retry in %ds", ERROR_BACKOFF_S)
+            time.sleep(ERROR_BACKOFF_S)
 
 def stitch_tiles(tile_urls, tile_size, tiles_x, tiles_y):
     # Create a blank canvas for the final image
@@ -232,7 +245,7 @@ def stitch_tiles(tile_urls, tile_size, tiles_x, tiles_y):
     # Loop through the tiles and paste them in the correct position
     for i, url in enumerate(tile_urls):
         # Fetch the image from the URL
-        print(f"Downloading tile {url.replace(RAMMB_BASE_URL,'')}")
+        log.info("Downloading tile %s", url.replace(RAMMB_BASE_URL, ""))
         response = HTTP.get(url, timeout=HTTP_TIMEOUT_S)
         tile_image = pygame.image.load(io.BytesIO(response.content)).convert()
 
@@ -270,7 +283,7 @@ def overlay_date(dt, image):
     return image
 
 def poll_epic_images():
-    print(f"Checking for new images.")
+    log.info("Checking for new images.")
 
     newest_date, urls = get_latest_epic_urls()
 
@@ -282,13 +295,12 @@ def poll_epic_images():
             seen = imageurl in CACHE.inverse
         if seen:
             # We've handled this url already
-            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
+            log.info(" Cache hit %s", imageurl.replace(RAMMB_BASE_URL, ""))
             continue
 
         new_data = True
 
-        # Simple case, no tiling
-        print(f" Downloading simple image {imageurl.replace(RAMMB_BASE_URL,'')}")
+        log.info(" Downloading simple image %s", imageurl.replace(RAMMB_BASE_URL, ""))
         image_file = io.BytesIO(urlopen(imageurl).read())
         image = pygame.image.load(image_file)
     
@@ -308,16 +320,16 @@ def poll_epic_images():
     if pruned:
         new_data = True
 
-    print(f"{len(urls)} images for epic saved")
+    log.info("%d images for epic saved", len(urls))
 
     if new_data:
         with gif_selection_lock:
-            print(f"Some new images detected")
+            log.info("Some new images detected")
             gif_changed[0] = True
 
 
 def poll_rammb_images():
-    print(f"Checking for new images.")
+    log.info("Checking for new images.")
     new_data = False
     i = -1
     newest_date, world_urls = get_latest_rammb_urls()
@@ -328,25 +340,26 @@ def poll_rammb_images():
         with CACHE_LOCK:
             seen = imageurl in CACHE.inverse
         if seen:
-            # We've handled this url or set of tiles already
-            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
+            log.info(" Cache hit %s", imageurl.replace(RAMMB_BASE_URL, ""))
             continue
-        
-        new_data = True
 
-        # Simple case, no tiling
-        print(f" Downloading simple image {imageurl.replace(RAMMB_BASE_URL,'')}")
-        image_file = io.BytesIO(urlopen(imageurl).read())
-        image = pygame.image.load(image_file)
-        cropped = pygame.transform.scale(image, (480, 480))
+        try:
+            new_data = True
+            log.info(" Downloading simple image %s", imageurl.replace(RAMMB_BASE_URL, ""))
+            image_file = io.BytesIO(urlopen(imageurl).read())
+            image = pygame.image.load(image_file)
+            cropped = pygame.transform.scale(image, (480, 480))
 
-        cropped = overlay_date(dt, cropped)
-        impath = f"images/rammb_{i}.jpg"
-        pygame.image.save(cropped, impath)
-        with CACHE_LOCK:
-            CACHE[impath] = imageurl
+            cropped = overlay_date(dt, cropped)
+            impath = f"images/rammb_{i}.jpg"
+            pygame.image.save(cropped, impath)
+            with CACHE_LOCK:
+                CACHE[impath] = imageurl
+        except Exception:
+            log.exception(" Failed to download world image %s", imageurl.replace(RAMMB_BASE_URL, ""))
+            continue
 
-    print(f"{len(world_urls)} rammb world images saved")
+    log.info("%d rammb world images saved", len(world_urls))
 
     newest_date, europe_urls = get_latest_rammb_urls(zoom=3,
                                            tile_x_filter=range(3,6),
@@ -355,33 +368,31 @@ def poll_rammb_images():
     for dt, tiles, (nt, nx, ny, tile_size) in europe_urls:
         i += 1  
         imageurl = tiles[0]
-        # Add a prefix to separate them from the world urls
         with CACHE_LOCK:
             seen = ("eu_" + imageurl) in CACHE.inverse
         if seen:
-            # We've handled this url or set of tiles already
-            print(f" Cache hit {imageurl.replace(RAMMB_BASE_URL,'')}")
+            log.info(" Cache hit %s", imageurl.replace(RAMMB_BASE_URL, ""))
             continue
-        
-        new_data = True
 
-        # Set of image tiles
-        print(f" Downloading tiled image")
-        image = stitch_tiles(tiles, tile_size, nx, ny)
-        # Crop out Europe (X, Y, Width, Height)
-        crop_box = (102, 21, 102 + 879, 21 + 879)
-        crop_rect = pygame.Rect(*crop_box)
-        # Crop the image using subsurface
-        cropped = image.subsurface(crop_rect)
-        cropped = pygame.transform.scale(cropped, (480, 480))
+        try:
+            new_data = True
+            log.info(" Downloading tiled image")
+            image = stitch_tiles(tiles, tile_size, nx, ny)
+            crop_box = (102, 21, 102 + 879, 21 + 879)
+            crop_rect = pygame.Rect(*crop_box)
+            cropped = image.subsurface(crop_rect)
+            cropped = pygame.transform.scale(cropped, (480, 480))
 
-        cropped = overlay_date(dt, cropped)
-        impath = f"images/rammb_{i}.jpg"
-        pygame.image.save(cropped, impath)
-        with CACHE_LOCK:
-            CACHE[impath] = ("eu_" + imageurl)
+            cropped = overlay_date(dt, cropped)
+            impath = f"images/rammb_{i}.jpg"
+            pygame.image.save(cropped, impath)
+            with CACHE_LOCK:
+                CACHE[impath] = ("eu_" + imageurl)
+        except Exception:
+            log.exception(" Failed to download europe image %s", imageurl.replace(RAMMB_BASE_URL, ""))
+            continue
 
-    print(f"{len(europe_urls)} images for ramb europe saved")
+    log.info("%d images for ramb europe saved", len(europe_urls))
 
     # Prune any stale `images/rammb_*.jpg` that were cached previously but not
     # produced in this poll cycle (e.g. if upstream returns fewer frames).
@@ -392,7 +403,7 @@ def poll_rammb_images():
 
     if new_data:
         with gif_selection_lock:
-            print(f"Some new images detected")
+            log.info("Some new images detected")
             gif_changed[0] = True
 
 
