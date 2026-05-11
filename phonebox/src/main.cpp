@@ -14,10 +14,10 @@
 #include <Preferences.h>
 
 Preferences prefs;
+
 const char* ssid       = "";
 const char* password   = "";
 const char* CAL_SECRET = "";
-
 
 const char* ntpServer = "pool.ntp.org";
 const char* timezone = "GMT0BST,M3.5.0/1,M10.5.0/2";
@@ -100,6 +100,8 @@ bool oldDeviceConnected = false;
 
 void lock_lid();
 void unlock_lid();
+void printLocalTime();
+void printLocalTime(const struct tm& timeinfo);
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
@@ -232,7 +234,11 @@ CalResult check_calendar(){
 
   http.begin(serverPath.c_str());
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setTimeout(10000);  // don't let a slow connection stall the main loop
+  // Fail fast: a slow/down AP stalls the entire main loop (no tamper, no
+  // BLE handling) for the duration of this call. CAL_RETRY_INTERVAL (1 min)
+  // already retries cheaply, so a short timeout is strictly better than a
+  // long stall. Healthy Apps Script responses complete well under this.
+  http.setTimeout(4000);
 
   Serial.print("Making calendar request...");
   int httpResponseCode = http.GET();
@@ -267,6 +273,13 @@ CalResult check_calendar(){
   return result;
 }
 
+void printLocalTime(const struct tm& timeinfo) {
+  Serial.print("Local time: ");
+  // Print's println(struct tm*, ...) overload isn't const-correct, but it
+  // only reads from the struct, so the cast is safe.
+  Serial.println(const_cast<struct tm*>(&timeinfo), "%A, %B %d %Y %H:%M:%S");
+}
+
 void printLocalTime() {
   struct tm timeinfo;
   // Non-blocking: don't waste 5s in the main loop just to print the time.
@@ -274,8 +287,7 @@ void printLocalTime() {
     Serial.println("Failed to obtain time");
     return;
   }
-  Serial.print("Local time: ");
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  printLocalTime(timeinfo);
 }
 
 void show_colour(const uint32_t c){
@@ -285,27 +297,18 @@ void show_colour(const uint32_t c){
 
 
 void connect_to_wifi(){
-  Serial.printf("Connecting to %s ", ssid);
+  // Fully non-blocking. Busy-waiting here used to block setup() for up to
+  // 20s, during which loop() hadn't started yet, so tamper detection and
+  // BLE override were dead. WiFi.setAutoReconnect(true) plus ensure_wifi()
+  // finish the handshake in the background, and ensure_wifi() also calls
+  // configTzTime() exactly once when WiFi first comes up.
+  Serial.printf("Connecting to %s (non-blocking)\n", ssid);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  WiFi.persistent(true);
+  // We pass ssid/password explicitly on every boot, so persisting them to
+  // flash just wears NVS for no benefit.
+  WiFi.persistent(false);
   WiFi.begin(ssid, password);
-
-  // Bounded wait so a bad AP at boot doesn't hang the box forever.
-  // ensure_wifi() will keep retrying in the background.
-  const unsigned long timeout_ms = 20000;
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeout_ms) {
-      delay(500);
-      Serial.print(".");
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println(" CONNECTED");
-    configTzTime(timezone, ntpServer);
-  } else {
-    Serial.println(" TIMEOUT (will keep retrying in background)");
-  }
 }
 
 // Fully non-blocking reconnect kick. Safe to call from the main loop;
@@ -624,6 +627,46 @@ bool in_lock_window(const int now_h, const int now_m, const bool is_weekend){
   return (window_len > 0) && (since_lock < window_len);
 }
 
+bool cache_matches_day_key(const int day_year, const int day_yday) {
+  return (cached_cal_yday == day_yday) && (cached_cal_year == day_year);
+}
+
+void ensure_calendar_cache_loaded() {
+  if (cal_cache_loaded) return;
+  cached_cal_yday = prefs.getInt("cal_yday", -1);
+  cached_cal_year = prefs.getInt("cal_year", -1);
+  cached_cal_res  = prefs.getBool("cal_res", false);
+  cal_cache_loaded = true;
+}
+
+bool is_leap_tm_year(const int tm_year) {
+  const int year = tm_year + 1900;
+  return ((year % 4) == 0 && (year % 100) != 0) || ((year % 400) == 0);
+}
+
+int days_in_tm_year(const int tm_year) {
+  return is_leap_tm_year(tm_year) ? 366 : 365;
+}
+
+void get_prev_day_key(const struct tm& timeinfo, int& day_year, int& day_yday) {
+  if (timeinfo.tm_yday > 0) {
+    day_year = timeinfo.tm_year;
+    day_yday = timeinfo.tm_yday - 1;
+    return;
+  }
+
+  day_year = timeinfo.tm_year - 1;
+  day_yday = days_in_tm_year(day_year) - 1;
+}
+
+bool is_before_unlock_time(const struct tm& timeinfo, const bool is_weekend) {
+  const int unlock_hr = is_weekend ? WE_UNLOCK_HR : UNLOCK_HR;
+  const int unlock_min = is_weekend ? WE_UNLOCK_MIN : UNLOCK_MIN;
+  if (timeinfo.tm_hour < unlock_hr) return true;
+  if (timeinfo.tm_hour > unlock_hr) return false;
+  return timeinfo.tm_min < unlock_min;
+}
+
 // Refresh the persisted calendar cache if (a) we've never checked,
 // (b) we already have today's answer but it's getting stale, or
 // (c) we DON'T have today's answer and the retry throttle has expired.
@@ -632,17 +675,11 @@ bool in_lock_window(const int now_h, const int now_m, const bool is_weekend){
 void update_calendar_cache(const struct tm& timeinfo){
   // Lazy-load the persisted calendar cache once (survives reboots so a
   // power-cycle during a WiFi outage doesn't lose today's schedule).
-  if (!cal_cache_loaded) {
-    cached_cal_yday = prefs.getInt("cal_yday", -1);
-    cached_cal_year = prefs.getInt("cal_year", -1);
-    cached_cal_res  = prefs.getBool("cal_res", false);
-    cal_cache_loaded = true;
-  }
+  ensure_calendar_cache_loaded();
 
   // Match BOTH year and yday so we don't reuse e.g. day 100 from last year
   // after a long power-off.
-  const bool today_known = (cached_cal_yday == timeinfo.tm_yday) &&
-                           (cached_cal_year == timeinfo.tm_year);
+  const bool today_known = cache_matches_day_key(timeinfo.tm_year, timeinfo.tm_yday);
 
   // Decide whether to issue a new calendar request:
   //  - We've never checked since boot, OR
@@ -688,21 +725,26 @@ void update_calendar_cache(const struct tm& timeinfo){
   }
 }
 
-// Pure cache lookup: is today flagged as a phone-locking day? When we have
-// no confirmed answer for today (calendar unreachable since boot, etc.),
+// Pure cache lookup for a specific lock-window day. When we have
+// no confirmed answer for that day (calendar unreachable since boot, etc.),
 // fail SAFE and assume yes so the alarm can still fire. Flip the fallback
 // to `false` if you'd rather fail open.
-bool is_locking_day(const struct tm& timeinfo){
-  const bool today_known = (cached_cal_yday == timeinfo.tm_yday) &&
-                           (cached_cal_year == timeinfo.tm_year);
-  if (today_known) {
+bool is_locking_day(const int day_year, const int day_yday){
+  ensure_calendar_cache_loaded();
+  const bool day_known = cache_matches_day_key(day_year, day_yday);
+  if (day_known) {
     Serial.println(cached_cal_res
-      ? "Today is a phone locking day!"
-      : "Today is not a phone locking day");
+      ? "Lock-window day is a phone locking day!"
+      : "Lock-window day is not a phone locking day");
     return cached_cal_res;
   }
-  Serial.println("WARNING: Calendar unknown for today; defaulting to LOCKING DAY");
+  Serial.println("WARNING: Calendar unknown for lock-window day; defaulting to LOCKING DAY");
   return true;
+}
+
+void reset_lock_alarm_state() {
+  alarm_active = false;
+  alarm_gave_up = false;
 }
 
 void alarm(){
@@ -737,14 +779,6 @@ void detect_tamper_lid_open(){
 // every SLOW_TICK_MS, NOT every loop iteration, so the fast path (tamper,
 // BLE) stays responsive even when this work blocks (HTTP up to 10s).
 void slow_tick() {
-  printLocalTime();
-
-  // User (phone) override
-  if(ble_override){
-    Serial.println("Somebody using BLE to control box, ignoring std logic");
-    return;
-  }
-
   struct tm timeinfo;
   // Non-blocking: rely on cached RTC time. After the first successful NTP
   // sync, getLocalTime() returns the RTC value instantly. We must NOT block
@@ -754,22 +788,42 @@ void slow_tick() {
     return;
   }
 
-  update_calendar_cache(timeinfo);
+  printLocalTime(timeinfo);
+
+  // User (phone) override
+  if(ble_override){
+    Serial.println("Somebody using BLE to control box, ignoring std logic");
+    return;
+  }
 
   const bool isWeekend   = (timeinfo.tm_wday == 0 || timeinfo.tm_wday == 6);
   const bool in_window   = in_lock_window(timeinfo.tm_hour, timeinfo.tm_min, isWeekend);
+  const bool in_morning_window = in_window && is_before_unlock_time(timeinfo, isWeekend);
+  int lock_day_year = timeinfo.tm_year;
+  int lock_day_yday = timeinfo.tm_yday;
+  if (in_morning_window) {
+    // During the overnight tail, the lock window still belongs to yesterday's
+    // evening schedule, not the current civil date after midnight.
+    get_prev_day_key(timeinfo, lock_day_year, lock_day_yday);
+  }
+
+  // Preserve yesterday's cached answer during the overnight segment so we
+  // don't overwrite it with today's value before morning unlock.
+  if (!in_morning_window) {
+    update_calendar_cache(timeinfo);
+  }
+
   // INTENTIONAL ASYMMETRY: locking requires being inside the daily window
   // AND it being a calendar-marked locking day; unlocking only requires
   // being outside the window (calendar is NOT consulted). This avoids
   // unlocking at midnight on a "free" day mid-overnight-lock, which the
   // user explicitly does not want.
-  const bool want_locked = in_window && is_locking_day(timeinfo);
+  const bool want_locked = in_window && is_locking_day(lock_day_year, lock_day_yday);
 
   if(is_unlocked() && want_locked){
     if (is_lid_closed() && is_phone_present_switch()) {
       lock_lid();
-      alarm_active = false;
-      alarm_gave_up = false;
+      reset_lock_alarm_state();
       Serial.println("Box locked !");
     } else {
       Serial.println("ERROR: Time to lock but lid is open or phone not detected");
@@ -790,16 +844,14 @@ void slow_tick() {
     }
   } else if(is_locked() && !in_window){
     unlock_lid();
-    alarm_active = false;
-    alarm_gave_up = false;
+    reset_lock_alarm_state();
     Serial.println("Box unlocked !");
   } else {
     // Outside the lock-transition window (or already locked).
     // Re-arm the alarm so it can fire fresh on the next lock window;
     // without this, once the alarm "gives up" it would never sound again
     // until a successful lock_lid() reset the sentinel.
-    alarm_active = false;
-    alarm_gave_up = false;
+    reset_lock_alarm_state();
   }
 }
 
