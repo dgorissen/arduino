@@ -14,9 +14,10 @@
 #include <Preferences.h>
 
 Preferences prefs;
-const char* ssid       = "dummy";
-const char* password   = "dummy";
-const char* CAL_SECRET = "dummy";
+const char* ssid       = "";
+const char* password   = "";
+const char* CAL_SECRET = "";
+
 
 const char* ntpServer = "pool.ntp.org";
 const char* timezone = "GMT0BST,M3.5.0/1,M10.5.0/2";
@@ -29,8 +30,9 @@ const int WE_UNLOCK_HR = 10;
 const int WE_UNLOCK_MIN = 00;
 
 const int CAL_CHECK_INTERVAL = 1000*60*15;
+const int CAL_RETRY_INTERVAL = 1000*60;       // retry sooner after a failed/unknown check
 const int ALARM_DURATION = 1000*60*3;
-const int PHONE_DIST = 48.5;
+constexpr float PHONE_DIST = 48.5f;
 
 const int SERVO_PIN = 10;
 const int LED_DIN_PIN = 11;
@@ -40,6 +42,7 @@ const int MIC_SWITCH_PIN = 6;
 const int CONT_SWITCH_PIN = 9;
 
 VL53L1X dist_sensor;
+bool dist_sensor_ok = false;
 //Adafruit_NeoPixel status_led = Adafruit_NeoPixel(1, PIN_NEOPIXEL, NEO_GRB);
 Adafruit_DotStar strip = Adafruit_DotStar(20, LED_DIN_PIN, LED_CIN_PIN, DOTSTAR_BGR);
 
@@ -50,17 +53,46 @@ const uint32_t blue = strip.Color(0, 0, 255);
 
 bool locked = false;
 int servoIndex1 = -1;
-int cal_res = -1;
-int last_cal_check = -1;
-long alarm_start = -1;
-long tamper_alarm_start = -1;
+
+// Tri-state calendar result. CAL_UNKNOWN means we couldn't reach the calendar
+// (e.g. WiFi down, HTTP failure, malformed response) - distinct from a real "no".
+enum CalResult { CAL_UNKNOWN = -1, CAL_NO = 0, CAL_YES = 1 };
+
+// Last *successful* calendar answer, scoped to a specific (year, day-of-year)
+// so we don't accidentally reuse yesterday's answer - or, more subtly, an
+// answer from the same yday in a previous year after a long power-off or
+// across new-year. Persisted to flash so a reboot during a WiFi outage
+// doesn't lose the schedule for today.
+bool cached_cal_res = false;
+int  cached_cal_yday = -1;
+int  cached_cal_year = -1;
+bool cal_cache_loaded = false;
+
+unsigned long last_cal_check = 0;
+bool last_cal_check_valid = false;
+
+unsigned long alarm_start = 0;
+bool alarm_active = false;
+bool alarm_gave_up = false;
+
+unsigned long tamper_alarm_start = 0;
+bool tamper_alarm_active = false;
+bool tamper_gave_up = false;
+
 bool ble_override = false;
+
+// BLE callbacks run on the BLE stack task. Doing slow work there (servo
+// sweeps with delay(), NVS writes) starves BLE and races with the main loop
+// which also touches `locked`, the servo, and `prefs`. Instead, the callback
+// just records the requested command and the main loop acts on it on its own
+// task. Single-byte writes are atomic on the ESP32 so a plain `volatile char`
+// is sufficient; 0 means "no pending command".
+volatile char pending_ble_cmd = 0;
 
 BLEServer *pServer = NULL;
 BLECharacteristic * pTxCharacteristic;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-uint8_t txValue = 0;
 
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -83,30 +115,23 @@ class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       String rxValue = pCharacteristic->getValue().c_str();
 
-      if (rxValue.length() > 0) {
-        Serial.print("Received BLE Value: ");
-        Serial.println(rxValue);
+      if (rxValue.length() == 0) return;
 
-        // Normalize input
-        rxValue.trim();
-        rxValue.toUpperCase();
+      Serial.print("Received BLE Value: ");
+      Serial.println(rxValue);
 
-        if (rxValue.equals("L")) {
-          ble_override = true;   // enter manual override: stay locked until U or C
-          lock_lid();
-        } else if (rxValue.equals("U")) {
-          ble_override = false;  // exit override and unlock
-          unlock_lid();
-        } else if (rxValue.equals("C")) {
-          ble_override = false;  // exit override only; keep current state
-          Serial.println("BLE override cleared; resuming time-based logic");
-        } else {
-          Serial.print("Invalid BLE command, ignoring: '");
-          Serial.print(rxValue);
-          Serial.println("'");
-        }
+      rxValue.trim();
+      rxValue.toUpperCase();
 
-        prefs.putBool("ble_override", ble_override);
+      // Don't do real work on the BLE task: just hand a single-char request
+      // to the main loop. Anything else (servo, NVS, alarm) racing with
+      // loop_main() is asking for trouble.
+      if (rxValue.equals("L") || rxValue.equals("U") || rxValue.equals("C")) {
+        pending_ble_cmd = rxValue.charAt(0);
+      } else {
+        Serial.print("Invalid BLE command, ignoring: '");
+        Serial.print(rxValue);
+        Serial.println("'");
       }
     }
 };
@@ -147,67 +172,105 @@ void setup_ble() {
 }
 
 void iter_ble(){
-    if (deviceConnected) {
-        pTxCharacteristic->setValue(&txValue, 1);
-        pTxCharacteristic->notify();
-        txValue++;
-		delay(10); // bluetooth stack will go into congestion, if too many packets are sent
-	}
-
     // disconnecting
     if (!deviceConnected && oldDeviceConnected) {
-        delay(500); // give the bluetooth stack the chance to get things ready
+        // No need to wait here; startAdvertising() does not require a
+        // post-disconnect grace period. The 500 ms delay copy-pasted from
+        // the Nordic UART example just delays tamper detection.
         pServer->startAdvertising(); // restart advertising
         Serial.println("BLE start advertising");
         oldDeviceConnected = deviceConnected;
     }
     // connecting
     if (deviceConnected && !oldDeviceConnected) {
-		  // do stuff here on connecting
         oldDeviceConnected = deviceConnected;
     }
 }
 
-bool check_calendar(){
-  if(WiFi.status() == WL_CONNECTED){
-      HTTPClient http;
+// Process any BLE command queued by MyCallbacks::onWrite. Runs on the main
+// task so servo/NVS/locked are only ever touched by one task.
+// Only writes ble_override to NVS when its value actually changes (avoids
+// pointless flash wear when the user hammers the same command).
+void process_pending_ble_cmd(){
+  char cmd = pending_ble_cmd;
+  if (cmd == 0) return;
+  pending_ble_cmd = 0;
 
-      String serverPath = "https://script.google.com/macros/s/" + String(CAL_SECRET) + "/exec";
-      
-      http.begin(serverPath.c_str());
-      http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-      
-      Serial.print("Making calendar request...");
-      int httpResponseCode = http.GET();
-      String payload = "";
+  bool prev_override = ble_override;
 
-      if (httpResponseCode>0) {
-        Serial.print("HTTP Response code: ");
-        Serial.println(httpResponseCode);
-        payload = http.getString();
-        Serial.println("Response: '" + payload + "'");
-      } else {
-        Serial.print("Error code: ");
-        Serial.println(httpResponseCode);
-      }
-      // Free resources
-      http.end();
+  switch (cmd) {
+    case 'L':
+      ble_override = true;   // enter manual override: stay locked until C
+      lock_lid();
+      break;
+    case 'U':
+      ble_override = true;   // enter manual override: stay unlocked until C
+      unlock_lid();
+      break;
+    case 'C':
+      ble_override = false;  // exit override only; keep current state
+      Serial.println("BLE override cleared; resuming time-based logic");
+      break;
+    default:
+      // Should never happen - callback already filtered.
+      return;
+  }
 
-      if(payload.equals("true")){
-        Serial.println("TRUE");
-        return true;
-      }
+  if (ble_override != prev_override) {
+    prefs.putBool("ble_override", ble_override);
+  }
+}
 
+CalResult check_calendar(){
+  if(WiFi.status() != WL_CONNECTED){
+    Serial.println("WiFi Disconnected; calendar result UNKNOWN");
+    return CAL_UNKNOWN;
+  }
+
+  HTTPClient http;
+  String serverPath = "https://script.google.com/macros/s/" + String(CAL_SECRET) + "/exec";
+
+  http.begin(serverPath.c_str());
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setTimeout(10000);  // don't let a slow connection stall the main loop
+
+  Serial.print("Making calendar request...");
+  int httpResponseCode = http.GET();
+  String payload = "";
+  CalResult result = CAL_UNKNOWN;
+
+  if (httpResponseCode > 0) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    payload = http.getString();
+    Serial.println("Response: '" + payload + "'");
+
+    // Be liberal in what we accept: Apps Script responses can come back with
+    // surrounding whitespace, BOMs, or capitalisation differences.
+    payload.trim();
+    if (payload.equalsIgnoreCase("true")) {
+      result = CAL_YES;
+    } else if (payload.equalsIgnoreCase("false")) {
+      result = CAL_NO;
     } else {
-      Serial.println("WiFi Disconnected");
+      Serial.println("Calendar response malformed; treating as UNKNOWN");
+      result = CAL_UNKNOWN;
     }
+  } else {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+    // HTTP error -> we genuinely don't know, don't cache as "no"
+    result = CAL_UNKNOWN;
+  }
+  http.end();
 
-    return false;
+  return result;
 }
 
 void printLocalTime() {
   struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
+  // Non-blocking: don't waste 5s in the main loop just to print the time.
+  if(!getLocalTime(&timeinfo, 0)){
     Serial.println("Failed to obtain time");
     return;
   }
@@ -223,23 +286,79 @@ void show_colour(const uint32_t c){
 
 void connect_to_wifi(){
   Serial.printf("Connecting to %s ", ssid);
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+
+  // Bounded wait so a bad AP at boot doesn't hang the box forever.
+  // ensure_wifi() will keep retrying in the background.
+  const unsigned long timeout_ms = 20000;
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeout_ms) {
       delay(500);
       Serial.print(".");
   }
-  Serial.println(" CONNECTED");
 
-  //init and get the time
-  configTzTime(timezone, ntpServer);
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println(" CONNECTED");
+    configTzTime(timezone, ntpServer);
+  } else {
+    Serial.println(" TIMEOUT (will keep retrying in background)");
+  }
+}
+
+// Fully non-blocking reconnect kick. Safe to call from the main loop;
+// rate-limited so we don't hammer the radio while the AP is down.
+// Also guarantees configTzTime() has run at least once after WiFi has
+// ever been up (in case the boot-time connect timed out and auto-reconnect
+// brought WiFi up later in the background).
+void ensure_wifi(){
+  static bool time_configured = false;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!time_configured) {
+      configTzTime(timezone, ntpServer);
+      time_configured = true;
+    }
+    return;
+  }
+
+  static unsigned long last_attempt = 0;
+  static bool first_attempt = true;
+  unsigned long now = millis();
+  if (!first_attempt && (now - last_attempt) < 30000UL) return;
+  first_attempt = false;
+  last_attempt = now;
+
+  // Trigger a reconnect attempt and return immediately. We rely on
+  // WiFi.setAutoReconnect(true) (set in connect_to_wifi) to actually finish
+  // the handshake in the background. Busy-waiting here used to block the
+  // main loop for up to 5s, starving tamper detection and BLE handling.
+  Serial.println("WiFi disconnected; kicking reconnect (non-blocking)");
+  WiFi.reconnect();
 }
 
 
 void setup_dist_sensor(){
   dist_sensor.setTimeout(500);
-  while (!dist_sensor.init()) {
+
+  // Try a bounded number of times. If the sensor is missing or wedged at boot
+  // we still want BLE/WiFi/time-based locking to come up; is_phone_present()
+  // only uses the switch anyway, so the dist sensor is non-critical.
+  const int max_attempts = 5;
+  for (int i = 0; i < max_attempts; ++i) {
+    if (dist_sensor.init()) {
+      dist_sensor_ok = true;
+      break;
+    }
     Serial.println("Failed to detect and initialize sensor!");
     delay(1000);
+  }
+
+  if (!dist_sensor_ok) {
+    Serial.println("WARNING: distance sensor unavailable; continuing without it");
+    return;
   }
 
   dist_sensor.setDistanceMode(VL53L1X::Short);
@@ -290,21 +409,20 @@ void setup() {
   strip.fill(orange);
   strip.show();
 
-  prefs.begin("phonebox", false); 
-  locked = prefs.getBool("locked_state", locked); 
-  ble_override = prefs.getBool("ble_override", ble_override); 
+  // Bring up Serial FIRST so subsequent prints actually land on the wire.
+  Serial.begin(115200);
+  unsigned long serial_wait_start = millis();
+  while (!Serial && (millis() - serial_wait_start) < 2000UL) {
+    delay(50);
+  }
+
+  prefs.begin("phonebox", false);
+  locked = prefs.getBool("locked_state", locked);
+  ble_override = prefs.getBool("ble_override", ble_override);
 
   Serial.println("Locked state read from prefs at startup: " + String(locked));
   Serial.println("BLE override read from prefs at startup: " + String(ble_override));
 
-  int max_wait = 8;
-  int i = 0;
-  while(!Serial && i < max_wait) {
-    delay(1000);
-    ++i;
-  }
-
-  Serial.begin(115200);
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
 
@@ -333,23 +451,40 @@ bool is_phone_present_switch(){
 }
 
 bool is_phone_present_dist(){
-  const int n = 20;
-  const int thres = PHONE_DIST;
-  const int pad = 2.5;
-  float dist = 0;
-  
-  // Take an average over n
-  for(int i=0; i < n; ++i){
-    dist += dist_sensor.read();
+  if (!dist_sensor_ok) {
+    Serial.println("Distance sensor unavailable; skipping distance check");
+    return false;
+  }
 
+  const int n = 20;
+  const float thres = PHONE_DIST;
+  const float pad = 2.5f;
+  float dist_sum = 0;
+  int valid = 0;
+
+  // Average over n samples, skipping any reads where the sensor reported a
+  // timeout. read() returns a sentinel (~65535) on timeout that would otherwise
+  // poison the mean and make a present phone read as "absent".
+  // Each read can block up to ~50 ms (matches startContinuous(50)), so this
+  // loop can take ~1s in the worst case.
+  for(int i=0; i < n; ++i){
+    uint16_t r = dist_sensor.read();
     if (dist_sensor.timeoutOccurred()) {
       Serial.println("Warning: Distance sensor timeout");
+      continue;
     }
+    dist_sum += r;
+    valid++;
   }
-  
-  dist = dist / n;
 
-  Serial.println("Distance is " + String(dist));
+  if (valid == 0) {
+    Serial.println("Warning: Distance sensor returned no valid reads");
+    return false;
+  }
+
+  float dist = dist_sum / valid;
+
+  Serial.println("Distance is " + String(dist) + " (valid=" + String(valid) + "/" + String(n) + ")");
 
   if (((dist-pad) <= thres) && ((dist+pad) >= thres)){
     return true;
@@ -460,99 +595,114 @@ bool is_unlocked(){
   return !is_locked();
 }
 
-bool is_lock_time(const int now_h, const int now_m, const bool is_weekend){
-  bool res = false;
-
-  // Assumes never locking more than 24h
-
-  const int lock_hr = LOCK_HR;
-  const int lock_min = LOCK_MIN;
+// Pure modular-arithmetic test: are we currently inside the daily lock window?
+// Does NOT consult the calendar; callers combine this with is_locking_day()
+// when calendar gating is required.
+bool in_lock_window(const int now_h, const int now_m, const bool is_weekend){
+  // Assumes never locking more than 24h.
+  //
+  // Treat each time as minutes-since-midnight, then collapse onto a single
+  // "minutes since the lock instant" axis modulo 24h. The lock window is
+  // simply [0, window_len). This handles all four cases in one expression:
+  // span-midnight, no-span, same-hour, and the [0, 1)-minute boundary at
+  // unlock_min, which the previous branchy version got subtly wrong.
+  const int lock_hr   = LOCK_HR;
+  const int lock_min  = LOCK_MIN;
   const int unlock_hr = (is_weekend) ? WE_UNLOCK_HR : UNLOCK_HR;
   const int unlock_min = (is_weekend) ? WE_UNLOCK_MIN : UNLOCK_MIN;
 
-  // Are we locking for less than an hour
-  if ((now_h == lock_hr) && (lock_hr == unlock_hr)){
-    res = ((lock_min <= now_m) && (now_m <= unlock_min));
-  
-  // We span midnight
-  } else if(lock_hr > unlock_hr){
-    // cur is after lock but before midnight
-    if((now_h > lock_hr) && (now_h > unlock_hr)){
-      res = true;
-    // cur is after lock but before midnight, mins matter
-    }else if (((now_h == lock_hr) && (now_m >= lock_min)) && (now_h > unlock_hr)){
-      res = true;
-    // cur is after lock and after midnight
-    }else if((now_h < lock_hr) && (now_h < unlock_hr)){
-      res = true;
-    // cur is after lock and after midnight, mins matter
-    }else if ((now_h < lock_hr) && ((now_h == unlock_hr) && (now_m <= unlock_min))){
-      res = true;
-    } else {
-      // Stay unlocked
-      res = false;
-    }
-  // We dont span midnight
-  } else {
-    res = ((now_h >= lock_hr) && (now_m >= lock_min)) && ((now_h <= unlock_hr) && (now_m <= unlock_min));
-  }
+  const int day_min     = 24 * 60;
+  const int lock_total  = lock_hr   * 60 + lock_min;
+  const int unlock_total = unlock_hr * 60 + unlock_min;
+  const int now_total   = now_h     * 60 + now_m;
 
-  Serial.println("Time locking calc: now_h=" + String(now_h) + " now_m=" + String(now_m) + " res=" + String(res));
+  const int since_lock = ((now_total - lock_total) % day_min + day_min) % day_min;
+  const int window_len = ((unlock_total - lock_total) % day_min + day_min) % day_min;
 
-  return res;
+  // window_len == 0 means lock_time == unlock_time, which we interpret as
+  // "never locked" rather than "locked for 24h".
+  return (window_len > 0) && (since_lock < window_len);
 }
 
-bool is_time_to_lock(){
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Error: Failed to obtain time");
-    return false;
+// Refresh the persisted calendar cache if (a) we've never checked,
+// (b) we already have today's answer but it's getting stale, or
+// (c) we DON'T have today's answer and the retry throttle has expired.
+// Transient HTTP/WiFi failures must NOT poison the cache with a false
+// "no" - only definitive CAL_YES/CAL_NO answers update it.
+void update_calendar_cache(const struct tm& timeinfo){
+  // Lazy-load the persisted calendar cache once (survives reboots so a
+  // power-cycle during a WiFi outage doesn't lose today's schedule).
+  if (!cal_cache_loaded) {
+    cached_cal_yday = prefs.getInt("cal_yday", -1);
+    cached_cal_year = prefs.getInt("cal_year", -1);
+    cached_cal_res  = prefs.getBool("cal_res", false);
+    cal_cache_loaded = true;
   }
 
-  // Dont hammer the calendar
-  if((last_cal_check < 0) || ((millis() - last_cal_check) > CAL_CHECK_INTERVAL)){
-    cal_res = check_calendar();
-    last_cal_check = millis();
-  }
+  // Match BOTH year and yday so we don't reuse e.g. day 100 from last year
+  // after a long power-off.
+  const bool today_known = (cached_cal_yday == timeinfo.tm_yday) &&
+                           (cached_cal_year == timeinfo.tm_year);
 
-  if (cal_res){
-    Serial.println("Today is a phone locking day!");
+  // Decide whether to issue a new calendar request:
+  //  - We've never checked since boot, OR
+  //  - We have a confirmed answer for today and it's getting stale (15 min), OR
+  //  - We have NO confirmed answer for today, but we throttle these retries
+  //    to once a minute so a WiFi outage doesn't trigger an HTTP call every
+  //    loop iteration.
+  const unsigned long since_last = millis() - last_cal_check;
+  bool need_check;
+  if (!last_cal_check_valid) {
+    need_check = true;
+  } else if (today_known) {
+    need_check = since_last > (unsigned long)CAL_CHECK_INTERVAL;
   } else {
-    // Today is not a phone locking day, rejoice
-    return false;
+    need_check = since_last > (unsigned long)CAL_RETRY_INTERVAL;
   }
 
-  // Check if today is a weekend (Saturday or Sunday)
-  bool isWeekend = (timeinfo.tm_wday == 0 || timeinfo.tm_wday == 6);
-  bool res = is_lock_time(timeinfo.tm_hour, timeinfo.tm_min, isWeekend);
+  if (!need_check) return;
 
-  if(res){
-    Serial.println("Time to lock!");
-  }else{
-    Serial.println("Not time to lock yet");
+  ensure_wifi();
+  CalResult r = check_calendar();
+  last_cal_check = millis();
+  last_cal_check_valid = true;
+
+  // Only update the cache on a definitive answer; transient WiFi/HTTP
+  // failures must NOT poison the cache with a false "no".
+  if (r == CAL_UNKNOWN) return;
+
+  const bool new_res  = (r == CAL_YES);
+  const int  new_yday = timeinfo.tm_yday;
+  const int  new_year = timeinfo.tm_year;
+  // Only hit NVS when the value actually changes, to avoid pointless
+  // flash wear from the periodic 15-min refresh.
+  if (new_yday != cached_cal_yday ||
+      new_year != cached_cal_year ||
+      new_res  != cached_cal_res) {
+    cached_cal_yday = new_yday;
+    cached_cal_year = new_year;
+    cached_cal_res  = new_res;
+    prefs.putInt("cal_yday", cached_cal_yday);
+    prefs.putInt("cal_year", cached_cal_year);
+    prefs.putBool("cal_res", cached_cal_res);
   }
-
-  return res;
 }
 
-bool is_time_to_unlock(){
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Error: Failed to obtain time");
-    return false;
+// Pure cache lookup: is today flagged as a phone-locking day? When we have
+// no confirmed answer for today (calendar unreachable since boot, etc.),
+// fail SAFE and assume yes so the alarm can still fire. Flip the fallback
+// to `false` if you'd rather fail open.
+bool is_locking_day(const struct tm& timeinfo){
+  const bool today_known = (cached_cal_yday == timeinfo.tm_yday) &&
+                           (cached_cal_year == timeinfo.tm_year);
+  if (today_known) {
+    Serial.println(cached_cal_res
+      ? "Today is a phone locking day!"
+      : "Today is not a phone locking day");
+    return cached_cal_res;
   }
-
-  // Check if today is a weekend (Saturday or Sunday)
-  bool isWeekend = (timeinfo.tm_wday == 0 || timeinfo.tm_wday == 6);
-  bool res = ! is_lock_time(timeinfo.tm_hour, timeinfo.tm_min, isWeekend);
-
-  if(res){
-    Serial.println("Time to unlock");
-  }else{
-    Serial.println("Not time to unlock yet");
-  }
-
-  return res;
+  Serial.println("WARNING: Calendar unknown for today; defaulting to LOCKING DAY");
+  return true;
 }
 
 void alarm(){
@@ -563,32 +713,31 @@ void alarm(){
 void detect_tamper_lid_open(){
   // If the box is logically locked but the lid sensor reports open, trigger alarm
   if (is_locked() && !is_lid_closed()) {
-    Serial.println("TAMPER: Lid opened while locked");
-
-    if (tamper_alarm_start < 0) {
-      // Start tamper alarm window
+    if (!tamper_alarm_active) {
+      Serial.println("TAMPER: Lid opened while locked");
       tamper_alarm_start = millis();
+      tamper_alarm_active = true;
+      tamper_gave_up = false;
       alarm();
-    } else if ((millis() - tamper_alarm_start) < ALARM_DURATION) {
-      // Continue sounding alarm while within timeout window
+    } else if ((millis() - tamper_alarm_start) < (unsigned long)ALARM_DURATION) {
       alarm();
-    } else {
-      // Timeout expired; suppress further alarm until condition clears
+    } else if (!tamper_gave_up) {
+      // Timeout expired; log the transition once then suppress until cleared.
+      Serial.println("TAMPER alarm not listened to, giving up");
+      tamper_gave_up = true;
     }
   } else {
-    // Reset timer once tamper condition is no longer present
-    tamper_alarm_start = -1;
+    // Reset once tamper condition is no longer present
+    tamper_alarm_active = false;
+    tamper_gave_up = false;
   }
 }
 
-void loop_main() {
+// Slow path: time printing, calendar check, lock/unlock decisions. Runs
+// every SLOW_TICK_MS, NOT every loop iteration, so the fast path (tamper,
+// BLE) stays responsive even when this work blocks (HTTP up to 10s).
+void slow_tick() {
   printLocalTime();
-
-  // Tamper detection should run regardless of BLE override or schedule
-  detect_tamper_lid_open();
-
-  iter_ble();
-  delay(5000);
 
   // User (phone) override
   if(ble_override){
@@ -596,78 +745,87 @@ void loop_main() {
     return;
   }
 
-  if(is_unlocked() && is_time_to_lock()){
+  struct tm timeinfo;
+  // Non-blocking: rely on cached RTC time. After the first successful NTP
+  // sync, getLocalTime() returns the RTC value instantly. We must NOT block
+  // the loop for 5s every iteration when NTP is briefly unavailable.
+  if(!getLocalTime(&timeinfo, 0)){
+    Serial.println("Error: Failed to obtain time");
+    return;
+  }
+
+  update_calendar_cache(timeinfo);
+
+  const bool isWeekend   = (timeinfo.tm_wday == 0 || timeinfo.tm_wday == 6);
+  const bool in_window   = in_lock_window(timeinfo.tm_hour, timeinfo.tm_min, isWeekend);
+  // INTENTIONAL ASYMMETRY: locking requires being inside the daily window
+  // AND it being a calendar-marked locking day; unlocking only requires
+  // being outside the window (calendar is NOT consulted). This avoids
+  // unlocking at midnight on a "free" day mid-overnight-lock, which the
+  // user explicitly does not want.
+  const bool want_locked = in_window && is_locking_day(timeinfo);
+
+  if(is_unlocked() && want_locked){
     if (is_lid_closed() && is_phone_present_switch()) {
       lock_lid();
-      alarm_start = -1;
+      alarm_active = false;
+      alarm_gave_up = false;
       Serial.println("Box locked !");
     } else {
       Serial.println("ERROR: Time to lock but lid is open or phone not detected");
-    
-      // Check if the alarm needs to be started or is currently active within ALARM_DURATION.
-      if (alarm_start < 0) {
-          // Alarm has not started yet, initialize it.
+
+      if (!alarm_active) {
           Serial.println("Sounding alarm");
           alarm_start = millis();
-          alarm();  // Function to trigger the alarm
-      } else if ((millis() - alarm_start) < ALARM_DURATION) {
-          // Alarm is currently active
+          alarm_active = true;
+          alarm_gave_up = false;
+          alarm();
+      } else if ((millis() - alarm_start) < (unsigned long)ALARM_DURATION) {
           Serial.println("Sounding alarm");
-          alarm();  // Continue sounding the alarm
-      } else {
-          // Alarm duration has passed, give up on the alarm.
+          alarm();
+      } else if (!alarm_gave_up) {
           Serial.println("Alarm not listened to, giving up");
+          alarm_gave_up = true;
       }
-  
     }
-  } else if(is_locked() && is_time_to_unlock()){
+  } else if(is_locked() && !in_window){
     unlock_lid();
+    alarm_active = false;
+    alarm_gave_up = false;
     Serial.println("Box unlocked !");
   } else {
-    // nothing to do
+    // Outside the lock-transition window (or already locked).
+    // Re-arm the alarm so it can fire fresh on the next lock window;
+    // without this, once the alarm "gives up" it would never sound again
+    // until a successful lock_lid() reset the sentinel.
+    alarm_active = false;
+    alarm_gave_up = false;
   }
 }
 
-void loop_test(){
-  Serial.print("is_unlocked: ");
-  Serial.println(is_unlocked());
-  
-  Serial.print("is time to lock: ");
-  Serial.println(is_time_to_lock());
+void loop_main() {
+  static unsigned long last_slow_tick = 0;
+  static bool slow_tick_primed = false;
+  const unsigned long SLOW_TICK_MS = 5000UL;
 
-  Serial.print("is lid closed: ");
-  Serial.println(is_lid_closed());
-
-  Serial.print("is phone present: ");
-  Serial.println(is_phone_present());
-
-  Serial.print("is phone present dist: ");
-  Serial.println(is_phone_present_dist());
-
-  Serial.print("is phone present switch: ");
-  Serial.println(is_phone_present_switch());
-
-  Serial.println("--------------------------");
-
-  lock_lid();
-  delay(2000);   
-  unlock_lid();
-
+  // Fast path: must run every iteration so tamper alarm fires within ~50ms
+  // of the lid being opened, and BLE commands are handled promptly.
+  detect_tamper_lid_open();
   iter_ble();
-}
+  process_pending_ble_cmd();
 
-void loop_ble(){
-  iter_ble();
-}
+  unsigned long now = millis();
+  if (!slow_tick_primed || (now - last_slow_tick) >= SLOW_TICK_MS) {
+    last_slow_tick = now;
+    slow_tick_primed = true;
+    slow_tick();
+  }
 
-void loop_caltest(){
-  check_calendar();
-  delay(3000);
+  // Yield briefly so we don't peg the CPU / starve other tasks. Short enough
+  // that tamper detection latency stays well under 100 ms.
+  delay(50);
 }
 
 void loop(){
   loop_main();
-  //loop_test();
-  //loop_ble();
-  //loop_caltest();
 }
