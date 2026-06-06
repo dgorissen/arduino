@@ -100,6 +100,7 @@ bool oldDeviceConnected = false;
 
 void lock_lid();
 void unlock_lid();
+void reset_lock_alarm_state();
 void printLocalTime();
 void printLocalTime(const struct tm& timeinfo);
 
@@ -206,11 +207,16 @@ void process_pending_ble_cmd(){
       lock_lid();
       break;
     case 'U':
-      ble_override = true;   // enter manual override: stay unlocked until C
+      ble_override = false;  // return to time-based control; unlock now
       unlock_lid();
       break;
     case 'C':
       ble_override = false;  // exit override only; keep current state
+      // Reset stale alarm timers: if the lock-time alarm had started before
+      // the override was set, alarm_start is now hours old. Leaving it
+      // means the next slow_tick immediately "gives up" without ever
+      // sounding the alarm again. Fresh state lets it restart cleanly.
+      reset_lock_alarm_state();
       Serial.println("BLE override cleared; resuming time-based logic");
       break;
     default:
@@ -779,6 +785,11 @@ void detect_tamper_lid_open(){
 // every SLOW_TICK_MS, NOT every loop iteration, so the fast path (tamper,
 // BLE) stays responsive even when this work blocks (HTTP up to 10s).
 void slow_tick() {
+  // Must run before getLocalTime(): configTzTime() lives in ensure_wifi(),
+  // and we used to only reach it via update_calendar_cache() after time
+  // was already valid — a chicken-and-egg that prevented lock/alarm logic.
+  ensure_wifi();
+
   struct tm timeinfo;
   // Non-blocking: rely on cached RTC time. After the first successful NTP
   // sync, getLocalTime() returns the RTC value instantly. We must NOT block
@@ -840,6 +851,10 @@ void slow_tick() {
       } else if (!alarm_gave_up) {
           Serial.println("Alarm not listened to, giving up");
           alarm_gave_up = true;
+          // Restore LED: alarm() set it red, but the box is still unlocked.
+          // Without this the LED stays red indefinitely (unlock_lid() is
+          // never called if locking never succeeded).
+          show_colour(green);
       }
     }
   } else if(is_locked() && !in_window){
@@ -862,6 +877,7 @@ void loop_main() {
 
   // Fast path: must run every iteration so tamper alarm fires within ~50ms
   // of the lid being opened, and BLE commands are handled promptly.
+  ensure_wifi();
   detect_tamper_lid_open();
   iter_ble();
   process_pending_ble_cmd();
