@@ -207,7 +207,7 @@ void process_pending_ble_cmd(){
       lock_lid();
       break;
     case 'U':
-      ble_override = false;  // return to time-based control; unlock now
+      ble_override = true;   // enter manual override: stay unlocked until C
       unlock_lid();
       break;
     case 'C':
